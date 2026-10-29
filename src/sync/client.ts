@@ -1,0 +1,373 @@
+import {
+	createShapeId,
+	react,
+	renderPlaintextFromRichText,
+	toRichText,
+	type Editor,
+	type TLShape,
+	type TLShapeId,
+} from 'tldraw'
+import { widgetErrorsAtom } from '../canvas/shapes/WidgetShape'
+import { agentOptionsAtom, chatAtom, connectionAtom, getEquationShapes, limitsAtom, requestsAtom, scopeAtom, usageAtom, type ChatMessage, type Region } from '../state'
+import type { AgentOptions } from './protocol'
+import type { AiRequest, Box, ClientToServer, DocSnapshot, ServerToClient } from './protocol'
+
+const SERVER_WS = `ws://${location.hostname || 'localhost'}:3001/ws`
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+let socket: WebSocket | null = null
+
+export function send(msg: ClientToServer) {
+	if (socket?.readyState === WebSocket.OPEN) {
+		socket.send(JSON.stringify(msg))
+		return true
+	}
+	return false
+}
+
+const boxOf = (editor: Editor, s: TLShape): Box => {
+	const b = editor.getShapePageBounds(s)!
+	return { x: round(b.x), y: round(b.y), w: round(b.w), h: round(b.h) }
+}
+const round = (v: number) => Math.round(v)
+
+export function buildSnapshot(editor: Editor): DocSnapshot {
+	const { results } = scopeAtom.get()
+	const errors = widgetErrorsAtom.get()
+	const shapes = editor.getCurrentPageShapes()
+	const vp = editor.getViewportPageBounds()
+	const pb = editor.getCurrentPageBounds()
+	return {
+		equations: getEquationShapes(editor).map((s) => {
+			const r = results[s.id] ?? {}
+			return {
+				id: s.id, text: s.props.text, kind: r.kind, name: r.name, params: r.params, tex: r.tex,
+				resolved: r.resolved, value: r.value, numeric: r.numeric, error: r.error,
+				box: boxOf(editor, s), aiEdited: !!s.meta?.aiEdited || undefined,
+			}
+		}),
+		sliders: shapes.filter((s) => s.type === 'slider').map((s: any) => ({
+			id: s.id, name: s.props.name, value: s.props.value, min: s.props.min, max: s.props.max,
+			step: s.props.step, box: boxOf(editor, s),
+		})),
+		widgets: shapes.filter((s) => s.type === 'widget').map((s: any) => ({
+			id: s.id, title: s.props.title, box: boxOf(editor, s), error: errors[s.id], codeLength: s.props.code.length,
+		})),
+		shapes: shapes
+			.filter((s) => !['equation', 'slider', 'widget'].includes(s.type))
+			.map((s: any) => ({
+				id: s.id, type: s.type === 'geo' ? `geo:${s.props.geo}` : s.type, box: boxOf(editor, s),
+				text: s.props?.richText ? renderPlaintextFromRichText(editor, s.props.richText) || undefined : undefined,
+			})),
+		pageBounds: pb ? { x: round(pb.x), y: round(pb.y), w: round(pb.w), h: round(pb.h) } : undefined,
+		viewport: { x: round(vp.x), y: round(vp.y), w: round(vp.w), h: round(vp.h) },
+	}
+}
+
+function shapesInRegion(editor: Editor, region: Region) {
+	return editor.getCurrentPageShapes().filter((s) => {
+		const b = editor.getShapePageBounds(s)
+		return b && b.x < region.x + region.w && b.x + b.w > region.x && b.y < region.y + region.h && b.y + b.h > region.y
+	})
+}
+
+async function blobToBase64(blob: Blob): Promise<string> {
+	const buf = new Uint8Array(await blob.arrayBuffer())
+	let bin = ''
+	for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000))
+	return btoa(bin)
+}
+
+export async function exportImage(editor: Editor, opts: { region?: Region; shapeIds?: TLShapeId[] }) {
+	const ids = opts.shapeIds?.length
+		? opts.shapeIds
+		: opts.region
+			? shapesInRegion(editor, opts.region).map((s) => s.id)
+			: [...editor.getCurrentPageShapeIds()]
+	if (!ids.length) return null
+	const bounds = editor.getShapesPageBounds(ids)
+	const scale = bounds ? Math.min(2, 1600 / Math.max(bounds.w, bounds.h, 1)) : 1
+	const { blob, width, height } = await editor.toImage(ids, { format: 'png', background: true, padding: 16, scale })
+	return { image: await blobToBase64(blob), width, height, shapeIds: ids }
+}
+
+// Default spot for new content: to the right of `near`, else below existing equations.
+function place(editor: Editor, near?: Box, size = { w: 200, h: 40 }) {
+	if (near) return { x: near.x + near.w + 40, y: near.y }
+	const eqs = getEquationShapes(editor)
+	if (eqs.length) {
+		const last = eqs.reduce((a, b) => (editor.getShapePageBounds(a)!.maxY > editor.getShapePageBounds(b)!.maxY ? a : b))
+		const b = editor.getShapePageBounds(last)!
+		return { x: b.x, y: b.maxY + 16 }
+	}
+	const vp = editor.getViewportPageBounds()
+	return { x: vp.center.x - size.w / 2, y: vp.center.y - size.h / 2 }
+}
+
+function nearBox(editor: Editor, args: any): Box | undefined {
+	if (args.near) {
+		const s = editor.getShape(args.near as TLShapeId)
+		if (s) return boxOf(editor, s)
+	}
+	return args.region
+}
+
+function mustGet(editor: Editor, id: string, type?: string) {
+	const s = editor.getShape(id as TLShapeId)
+	if (!s) throw new Error(`No shape with id ${id}`)
+	if (type && s.type !== type) throw new Error(`Shape ${id} is a ${s.type}, not a ${type}`)
+	return s
+}
+
+async function settledResult(id: string) {
+	await sleep(120)
+	return scopeAtom.get().results[id]
+}
+
+const commands: Record<string, (editor: Editor, args: any) => Promise<unknown> | unknown> = {
+	getSnapshot: (editor) => buildSnapshot(editor),
+
+	getImage: async (editor, args) => exportImage(editor, { region: args.region, shapeIds: args.shapeIds }),
+
+	addEquation: async (editor, args) => {
+		const id = createShapeId()
+		const pos = args.x !== undefined ? { x: args.x, y: args.y } : place(editor, nearBox(editor, args))
+		editor.createShape({ id, type: 'equation', ...pos, props: { text: String(args.text) }, meta: { aiEdited: true } })
+		return { id, result: await settledResult(id) }
+	},
+
+	updateEquation: async (editor, args) => {
+		const s = mustGet(editor, args.id, 'equation')
+		editor.updateShape({ id: s.id, type: 'equation', props: { text: String(args.text) }, meta: { aiEdited: true } })
+		return { id: s.id, result: await settledResult(s.id) }
+	},
+
+	deleteShapes: (editor, args) => {
+		const ids = (args.ids as string[]).filter((id) => editor.getShape(id as TLShapeId)) as TLShapeId[]
+		editor.deleteShapes(ids)
+		return { deleted: ids }
+	},
+
+	moveShape: (editor, args) => {
+		const s = mustGet(editor, args.id)
+		editor.updateShape({ id: s.id, type: s.type, x: args.x, y: args.y })
+		return { id: s.id }
+	},
+
+	addSlider: async (editor, args) => {
+		// A slider replaces a plain `name = number` equation for the same constant.
+		const existing = getEquationShapes(editor).find((s) => {
+			const r = scopeAtom.get().results[s.id]
+			return r?.name === args.name && r.kind === 'constant'
+		})
+		const value = args.value ?? scopeAtom.get().results[existing?.id]?.value ?? 1
+		const pos = args.x !== undefined ? { x: args.x, y: args.y } : existing ? { x: existing.x, y: existing.y } : place(editor, nearBox(editor, args))
+		if (existing) editor.deleteShape(existing.id)
+		const id = createShapeId()
+		editor.createShape({
+			id, type: 'slider', ...pos, meta: { aiEdited: true },
+			props: {
+				name: args.name, value,
+				min: args.min ?? Math.min(0, value), max: args.max ?? Math.max(10, value * 2), step: args.step ?? 0.1,
+			},
+		})
+		return { id, replacedEquation: existing?.id }
+	},
+
+	addNote: (editor, args) => {
+		const id = createShapeId()
+		const pos = args.x !== undefined ? { x: args.x, y: args.y } : place(editor, nearBox(editor, args))
+		editor.createShape({
+			id, type: 'note', ...pos, meta: { aiEdited: true },
+			props: { richText: toRichText(String(args.text)), color: args.color ?? 'violet', size: 's' },
+		})
+		return { id }
+	},
+
+	createWidget: async (editor, args) => {
+		const id = createShapeId()
+		const w = args.w ?? 460, h = args.h ?? 320
+		const pos = args.x !== undefined ? { x: args.x, y: args.y } : place(editor, nearBox(editor, args), { w, h })
+		editor.createShape({
+			id, type: 'widget', ...pos, meta: args.requestId ? { aiEdited: true, requestId: args.requestId } : { aiEdited: true },
+			props: { w, h, title: args.title ?? 'Widget', code: String(args.code) },
+		})
+		await sleep(1500)
+		return { id, error: widgetErrorsAtom.get()[id] ?? null }
+	},
+
+	updateWidget: async (editor, args) => {
+		const s = mustGet(editor, args.id, 'widget') as any
+		const props: any = {}
+		for (const k of ['code', 'title', 'w', 'h']) if (args[k] !== undefined) props[k] = args[k]
+		editor.updateShape({ id: s.id, type: 'widget', props, meta: { aiEdited: true } })
+		await sleep(props.code ? 1500 : 200)
+		return { id: s.id, error: widgetErrorsAtom.get()[s.id] ?? null }
+	},
+
+	getWidgetCode: (editor, args) => {
+		const s = mustGet(editor, args.id, 'widget') as any
+		return { id: s.id, title: s.props.title, code: s.props.code, w: s.props.w, h: s.props.h, error: widgetErrorsAtom.get()[s.id] ?? null }
+	},
+
+	evaluate: (_editor, args) => scopeAtom.get().evaluate(String(args.text)),
+
+	getProgram: () => scopeAtom.get().program,
+}
+
+export function connectServer(editor: Editor) {
+	let stopped = false
+	let docTimer: ReturnType<typeof setTimeout> | undefined
+	const pushDoc = () => {
+		clearTimeout(docTimer)
+		docTimer = setTimeout(() => send({ type: 'doc', doc: buildSnapshot(editor) }), 300)
+	}
+
+	const open = () => {
+		if (stopped) return
+		const ws = new WebSocket(SERVER_WS)
+		socket = ws
+		ws.onopen = () => {
+			connectionAtom.update((c) => ({ ...c, server: true }))
+			send({ type: 'doc', doc: buildSnapshot(editor) })
+			send({ type: 'agentOptions', options: agentOptionsAtom.get() })
+		}
+		ws.onclose = () => {
+			connectionAtom.set({ server: false, claudeActive: false, claudeWaiting: false, agentAvailable: false, agentBusy: false })
+			if (!stopped) setTimeout(open, 2000)
+		}
+		ws.onmessage = async (ev) => {
+			const msg = JSON.parse(ev.data) as ServerToClient
+			if (msg.type === 'status') {
+				connectionAtom.update((c) => ({
+					...c, claudeActive: msg.claudeActive, claudeWaiting: msg.claudeWaiting,
+					agentAvailable: msg.agentAvailable, agentBusy: msg.agentBusy,
+				}))
+			} else if (msg.type === 'agent') {
+				onAgentEvent(msg.event)
+			} else if (msg.type === 'requestStatus') {
+				requestsAtom.update((list) =>
+					list.map((r) => (r.id === msg.id ? { ...r, status: msg.status, message: msg.message } : r))
+				)
+				if (msg.status === 'done' || msg.status === 'error') {
+					setTimeout(() => requestsAtom.update((l) => l.filter((r) => r.id !== msg.id || r.status !== msg.status)), 12000)
+				}
+			} else if (msg.type === 'cmd') {
+				const handler = commands[msg.cmd]
+				try {
+					if (!handler) throw new Error(`Unknown command ${msg.cmd}`)
+					const result = await handler(editor, msg.args ?? {})
+					send({ type: 'cmdResult', id: msg.id, ok: true, result })
+				} catch (err: any) {
+					send({ type: 'cmdResult', id: msg.id, ok: false, error: String(err?.message ?? err) })
+				}
+				pushDoc()
+			}
+		}
+	}
+	open()
+
+	const unlisten = editor.store.listen(pushDoc, { scope: 'document' })
+	// Scope changes (new results, widget errors) also change the snapshot.
+	const stopReact = react('push-doc', () => {
+		scopeAtom.get()
+		widgetErrorsAtom.get()
+		pushDoc()
+	})
+
+	return () => {
+		stopped = true
+		unlisten()
+		stopReact()
+		socket?.close()
+	}
+}
+
+let reqCounter = 0
+export async function submitAiRequest(
+	editor: Editor,
+	input: { prompt: string; action: AiRequest['action']; region?: Region }
+): Promise<boolean> {
+	const id = `req_${Date.now().toString(36)}_${++reqCounter}`
+	const img = await exportImage(editor, { region: input.region }).catch(() => null)
+	const request: AiRequest = {
+		id,
+		prompt: input.prompt,
+		action: input.action,
+		region: input.region,
+		image: img?.image,
+		shapeIds: (img?.shapeIds as string[]) ?? [],
+		createdAt: Date.now(),
+	}
+	const ok = send({ type: 'aiRequest', request })
+	requestsAtom.update((l) => [
+		...l,
+		{ id, prompt: input.prompt, action: input.action, region: input.region, status: ok ? 'pending' : 'error', message: ok ? undefined : 'Server not running' },
+	])
+	return ok
+}
+
+export function cancelAiRequest(id: string) {
+	send({ type: 'cancelRequest', id })
+	requestsAtom.update((l) => l.filter((r) => r.id !== id))
+}
+
+let msgCounter = 0
+const pushChat = (m: Omit<ChatMessage, 'id'>) => chatAtom.update((l) => [...l, { ...m, id: `m${++msgCounter}` }])
+
+function onAgentEvent(e: import('./protocol').AgentEvent) {
+	if (e.kind === 'start') {
+		// Runs started by the chat already show the user's message; label the others (AI helper).
+		const last = chatAtom.get().at(-1)
+		if (!(last?.role === 'user' && last.text === e.label)) pushChat({ role: 'user', text: e.label, runId: e.runId })
+	} else if (e.kind === 'text') {
+		pushChat({ role: 'assistant', text: e.text, runId: e.runId })
+	} else if (e.kind === 'tool') {
+		pushChat({ role: 'tool', text: e.name, runId: e.runId })
+	} else if (e.kind === 'limits') {
+		limitsAtom.set(e.limits)
+	} else if (e.kind === 'usage') {
+		usageAtom.update(({ total, runs }) => ({
+			last: e.usage,
+			runs: runs + 1,
+			total: {
+				model: e.usage.model,
+				inputTokens: total.inputTokens + e.usage.inputTokens,
+				outputTokens: total.outputTokens + e.usage.outputTokens,
+				cacheReadTokens: total.cacheReadTokens + e.usage.cacheReadTokens,
+				cacheWriteTokens: total.cacheWriteTokens + e.usage.cacheWriteTokens,
+				costUsd: total.costUsd + e.usage.costUsd,
+				durationMs: total.durationMs + e.usage.durationMs,
+			},
+		}))
+	} else if (e.kind === 'done' && !e.ok) {
+		pushChat({ role: 'error', text: e.error ?? 'Failed', runId: e.runId })
+	}
+}
+
+export function sendChat(text: string, selection: string[]) {
+	pushChat({ role: 'user', text })
+	if (!send({ type: 'chat', text, selection })) pushChat({ role: 'error', text: 'Server not running. Start it with npm run dev.' })
+}
+
+export function stopChat() {
+	send({ type: 'chatStop' })
+}
+
+export function resetChat() {
+	send({ type: 'chatReset' })
+	chatAtom.set([])
+	usageAtom.set({ total: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, costUsd: 0, durationMs: 0 }, runs: 0 })
+}
+
+export function checkLimits() {
+	send({ type: 'checkLimits' })
+}
+
+export function setAgentOptions(options: AgentOptions) {
+	agentOptionsAtom.set(options)
+	try {
+		localStorage.setItem('ms-agent-options', JSON.stringify(options))
+	} catch {}
+	send({ type: 'agentOptions', options })
+}

@@ -1,0 +1,12 @@
+node_modules/
+dist/
+scratch/
+*.log
+.DS_Store
+
+# Large / generated assets
+public/models/
+public/ort/
+
+# Local Claude settings
+.claude/settings.local.json
