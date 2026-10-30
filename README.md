@@ -30,6 +30,16 @@ way round. The tablet needs only the pairing token in the QR code (stored in `~/
 MCP and every other HTTP route stay local-only. If the tablet can't load the page, allow Node.js (or
 Math Studio) on Private networks in Windows Defender Firewall.
 
+### Android tablet app
+
+`android/` is a small app (no Google services needed, so it runs on Huawei tablets): scan the
+Connect tablet QR code once and the canvas opens full screen; the link is remembered. Back button:
+reload, scan a new code, or exit. Build (needs a JDK and the Android SDK in `android/local.properties`):
+
+```bash
+cd android && ./gradlew assembleDebug   # app/build/outputs/apk/debug/app-debug.apk
+```
+
 ## Connect Claude
 
 Claude Code:
