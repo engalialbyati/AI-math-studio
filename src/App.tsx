@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import {
+	DefaultStylePanel,
 	DefaultToolbar,
 	DefaultToolbarContent,
 	Tldraw,
 	TldrawUiMenuItem,
 	useIsToolSelected,
 	useTools,
+	useValue,
 	type Editor,
 	type TLComponents,
 	type TLUiOverrides,
@@ -24,7 +26,7 @@ import { SymbolPalette } from './canvas/SymbolPalette'
 import { TopBar } from './canvas/TopBar'
 import { openDocument, saveDocument, startFileDrop } from './export/document'
 import { convertInkToEquation } from './ocr/convert'
-import { scopeAtom, startScopeEngine } from './state'
+import { scopeAtom, startScopeEngine, stylesShownAtom } from './state'
 import { connectServer } from './sync/client'
 import { isRemote } from './sync/pairing'
 import './styles.css'
@@ -80,7 +82,13 @@ function Toolbar() {
 	)
 }
 
+function StylePanel() {
+	const shown = useValue('stylesShown', () => stylesShownAtom.get(), [])
+	return shown ? <DefaultStylePanel /> : null
+}
+
 const components: TLComponents = {
+	StylePanel,
 	Toolbar,
 	TopPanel: () => (
 		<div className="ms-top">

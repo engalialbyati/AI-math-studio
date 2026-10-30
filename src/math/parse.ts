@@ -112,7 +112,31 @@ texFunctions.inv = (a) => `{${a[0]}}^{-1}`
 texFunctions.transpose = (a) => `{${a[0]}}^{T}`
 texFunctions.nthRoot = (a) => `\\sqrt[${a[1] ?? 2}]{${a[0]}}`
 
+// A number times a letter, function or bracket reads as one term (5x, 2sin(x), 3(x+1)).
+function startsWithNumber(node: any): boolean {
+	if (node.type === 'ConstantNode') return true
+	if (node.type === 'OperatorNode' && node.args.length === 2 && ['*', '^'].includes(node.op)) return startsWithNumber(node.args[0])
+	if (node.type === 'OperatorNode' && node.fn === 'unaryMinus') return true
+	return false
+}
+
+function factorTex(node: any, options: any) {
+	const tex = node.toTex(options)
+	const loose = node.type === 'OperatorNode' && node.args.length === 2 && (node.op === '+' || node.op === '-')
+	return loose ? `\left(${tex}\right)` : tex
+}
+
+// Products print as 5x when a number leads, otherwise with * (never as a dot).
+function multiplyTex(node: any, options: any) {
+	const [l, r] = node.args
+	const lt = factorTex(l, options)
+	const rt = factorTex(r, options)
+	if (node.implicit || (l.type === 'ConstantNode' && !startsWithNumber(r))) return `${lt}${rt}`
+	return `${lt} * ${rt}`
+}
+
 function texHandler(node: any, options: any): string | undefined {
+	if (node.type === 'OperatorNode' && node.op === '*' && node.args.length === 2) return multiplyTex(node, options)
 	if (node.type === 'FunctionNode' && texFunctions[node.fn?.name]) {
 		return texFunctions[node.fn.name](node.args.map((a: MathNode) => a.toTex(options)))
 	}

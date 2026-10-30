@@ -4,7 +4,7 @@ import { docNameAtom, openDocument, saveDocument } from '../export/document'
 import { exportHtml } from '../export/exportHtml'
 import { LayoutPicker } from './PageLayout'
 import { convertInkToEquation, convertStatusAtom, selectedInk } from '../ocr/convert'
-import { connectionAtom } from '../state'
+import { connectionAtom, setStylesShown, stylesShownAtom } from '../state'
 import { submitAiRequest } from '../sync/client'
 import { followViewAtom, isRemote, setFollowView, syncStatusAtom } from '../sync/pairing'
 import { TabletButton } from './TabletPanel'
@@ -18,6 +18,7 @@ export function TopBar() {
 	const convert = useValue('convert', () => convertStatusAtom.get(), [])
 	const sync = useValue('sync', () => syncStatusAtom.get(), [])
 	const follow = useValue('follow', () => followViewAtom.get(), [])
+	const stylesShown = useValue('stylesShown', () => stylesShownAtom.get(), [])
 
 	const status = isRemote
 		? !conn.server
@@ -75,6 +76,9 @@ export function TopBar() {
 			)}
 			{convert.message && !convert.busy && <span className="ms-convert-msg" title={convert.message}>{convert.message}</span>}
 			<LayoutPicker />
+			<button onClick={() => setStylesShown(!stylesShown)} title="Show or hide the colour, line width and fill panel">
+				{stylesShown ? 'Hide styles' : 'Show styles'}
+			</button>
 			<button onClick={() => saveDocument(editor)} title={`Save${docName ? ` to ${docName}.mstudio` : ''} (Ctrl+S): pages, equations, text and images in one .mstudio file`}>
 				Save
 			</button>
