@@ -58,6 +58,8 @@ app.get('/health', (_req, res) => {
 
 const http = createServer(app)
 const wss = new WebSocketServer({ server: http, path: '/ws' })
+// ws re-emits the http server's errors (e.g. port in use); the http handler below reports them.
+wss.on('error', () => {})
 wss.on('connection', (ws, req) => {
 	const origin = req.headers.origin
 	const token = new URL(req.url ?? '', 'http://x').searchParams.get('token')
