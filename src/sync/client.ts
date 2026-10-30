@@ -255,6 +255,29 @@ export function connectServer(editor: Editor) {
 	// Same view: when a remote view is applied, the camera move it causes is not sent back.
 	let viewAppliedAt = 0
 	let viewTimer: ReturnType<typeof setTimeout> | undefined
+	// The other screen's latest view; the camera glides toward it every frame, so updates that
+	// arrive unevenly over Wi-Fi still look smooth.
+	let viewTarget: Box | null = null
+	let glideFrame = 0
+	const glide = () => {
+		glideFrame = 0
+		if (!viewTarget) return
+		const screen = editor.getViewportScreenBounds()
+		const b = viewTarget
+		const z = Math.min(screen.w / b.w, screen.h / b.h)
+		const goal = { x: screen.w / (2 * z) - (b.x + b.w / 2), y: screen.h / (2 * z) - (b.y + b.h / 2), z }
+		const cam = editor.getCamera()
+		const k = 0.45 // share of the remaining distance covered per frame
+		const next = { x: cam.x + (goal.x - cam.x) * k, y: cam.y + (goal.y - cam.y) * k, z: cam.z + (goal.z - cam.z) * k }
+		const done = Math.abs(goal.z - cam.z) < 1e-3 * goal.z && Math.hypot((goal.x - cam.x) * z, (goal.y - cam.y) * z) < 0.5
+		viewAppliedAt = Date.now()
+		editor.setCamera(done ? goal : next, { immediate: true, force: true })
+		// Zoom limits can stop the camera short of the goal: stop gliding when it no longer moves.
+		const now = editor.getCamera()
+		const stuck = Math.abs(now.x - cam.x) + Math.abs(now.y - cam.y) + Math.abs(now.z - cam.z) < 1e-6
+		if (done || stuck) viewTarget = null
+		else glideFrame = requestAnimationFrame(glide)
+	}
 	const sendView = () => {
 		const st = syncStatusAtom.get()
 		if (!followViewAtom.get() || (isRemote ? !st.synced : !st.tablets)) return
@@ -307,7 +330,8 @@ export function connectServer(editor: Editor) {
 				if (!followViewAtom.get()) return
 				viewAppliedAt = Date.now()
 				if (editor.getCurrentPageId() !== msg.pageId && editor.getPage(msg.pageId as any)) editor.setCurrentPage(msg.pageId as any)
-				editor.zoomToBounds(msg.bounds, { inset: 0, immediate: true, force: true })
+				viewTarget = msg.bounds
+				if (!glideFrame) glideFrame = requestAnimationFrame(glide)
 			} else if (msg.type === 'syncStatus') {
 				// A tablet just joined: once it has loaded the document, show it what the PC shows.
 				if (!isRemote && msg.tablets > syncStatusAtom.get().tablets) setTimeout(sendView, 1500)
@@ -337,16 +361,17 @@ export function connectServer(editor: Editor) {
 	open()
 
 	const unlisten = editor.store.listen(pushDoc, { scope: 'document' })
-	// Same view: send this screen's camera and page while it changes (about 25 times a second).
+	// Same view: send this screen's camera and page while it changes.
 	const stopView = react('send-view', () => {
 		editor.getViewportPageBounds()
 		editor.getCurrentPageId()
 		followViewAtom.get()
 		if (viewTimer) return
+		// At most once per frame (~60 a second).
 		viewTimer = setTimeout(() => {
 			viewTimer = undefined
 			sendView()
-		}, 40)
+		}, 16)
 	})
 	// Live canvas sync: the PC sends to paired tablets, a tablet sends once it holds the PC's document.
 	const unlistenSync = editor.store.listen(
@@ -371,6 +396,7 @@ export function connectServer(editor: Editor) {
 		unlistenSync()
 		stopView()
 		clearTimeout(viewTimer)
+		cancelAnimationFrame(glideFrame)
 		stopReact()
 		socket?.close()
 	}
