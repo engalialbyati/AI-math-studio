@@ -29,4 +29,6 @@ android {
 dependencies {
     // QR scanning on the device's camera; works without Google Play services (Huawei).
     implementation 'com.journeyapps:zxing-android-embedded:4.3.0'
+    // The scanner asks for camera permission through AndroidX but does not declare it.
+    implementation 'androidx.core:core:1.13.1'
 }
