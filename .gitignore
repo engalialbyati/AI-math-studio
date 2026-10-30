@@ -10,3 +10,9 @@ public/ort/
 
 # Local Claude settings
 .claude/settings.local.json
+
+# Desktop app build output
+desktop/web/
+desktop/server/
+desktop/docs/
+release/

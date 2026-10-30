@@ -13,6 +13,23 @@ npm run dev
 
 Opens the app at http://localhost:5173 and the local server (WebSocket + MCP) at http://localhost:3001.
 
+## Desktop app (Windows installer)
+
+```bash
+npm run desktop   # builds release/Math Studio Setup <version>.exe
+```
+
+The app runs the local server itself (MCP stays at http://localhost:3001/mcp). Close `npm run dev` first:
+both use port 3001. Its canvas is stored separately from the browser version's.
+
+## Draw from a tablet
+
+Click **Connect tablet** in the top bar and scan the QR code with the tablet (same Wi-Fi). Math Studio
+opens in the tablet browser on the same canvas; strokes drawn there appear on the PC live, and the other
+way round. The tablet needs only the pairing token in the QR code (stored in `~/.math-studio/pair-token`);
+MCP and every other HTTP route stay local-only. If the tablet can't load the page, allow Node.js (or
+Math Studio) on Private networks in Windows Defender Firewall.
+
 ## Connect Claude
 
 Claude Code:

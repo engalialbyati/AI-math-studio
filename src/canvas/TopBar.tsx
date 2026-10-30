@@ -6,6 +6,8 @@ import { LayoutPicker } from './PageLayout'
 import { convertInkToEquation, convertStatusAtom, selectedInk } from '../ocr/convert'
 import { connectionAtom } from '../state'
 import { submitAiRequest } from '../sync/client'
+import { isRemote, syncStatusAtom } from '../sync/pairing'
+import { TabletButton } from './TabletPanel'
 
 export function TopBar() {
 	const editor = useEditor()
@@ -14,8 +16,17 @@ export function TopBar() {
 	const docName = useValue('doc-name', () => docNameAtom.get(), [])
 	const inkSelected = useValue('inkSelected', () => selectedInk(editor).length > 0, [editor])
 	const convert = useValue('convert', () => convertStatusAtom.get(), [])
+	const sync = useValue('sync', () => syncStatusAtom.get(), [])
 
-	const status = !conn.server
+	const status = isRemote
+		? !conn.server
+			? { cls: 'off', text: 'PC not reachable' }
+			: !sync.hosts
+				? { cls: 'mid', text: 'Open Math Studio on the PC' }
+				: sync.synced
+					? { cls: 'on', text: 'Live with PC' }
+					: { cls: 'mid', text: 'Syncing…' }
+		: !conn.server
 		? { cls: 'off', text: 'Server offline' }
 		: conn.claudeWaiting
 			? { cls: 'on', text: 'Claude listening' }
@@ -32,6 +43,11 @@ export function TopBar() {
 				<span className="dot" />
 				{status.text}
 			</button>
+			{isRemote ? (
+				<button onClick={toggleFullscreen} title="Use the whole screen for drawing">Fullscreen</button>
+			) : (
+				<TabletButton />
+			)}
 			<button
 				onClick={() =>
 					submitAiRequest(editor, {
@@ -61,6 +77,11 @@ export function TopBar() {
 			{help && <HelpPanel onClose={() => setHelp(false)} />}
 		</div>
 	)
+}
+
+function toggleFullscreen() {
+	if (document.fullscreenElement) document.exitFullscreen()
+	else document.documentElement.requestFullscreen?.().catch(() => {})
 }
 
 function HelpPanel({ onClose }: { onClose: () => void }) {

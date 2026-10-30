@@ -27,7 +27,8 @@ async function toDataUrl(blob: Blob): Promise<string> {
 	})
 }
 
-async function serialize(editor: Editor): Promise<string> {
+// Snapshot of the editor with every asset embedded as a data URL.
+export async function embeddedSnapshot(editor: Editor) {
 	const snap = getSnapshot(editor.store)
 	// Snapshot records are frozen: copy the store so asset sources can be replaced.
 	const store: Record<string, any> = { ...snap.document.store }
@@ -42,6 +43,11 @@ async function serialize(editor: Editor): Promise<string> {
 			console.warn('Could not embed asset', rec.id, err)
 		}
 	}
+	return snapshot
+}
+
+async function serialize(editor: Editor): Promise<string> {
+	const snapshot = await embeddedSnapshot(editor)
 	const file: MStudioFile = { format: FORMAT, version: VERSION, savedAt: new Date().toISOString(), snapshot }
 	return JSON.stringify(file)
 }
