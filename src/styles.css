@@ -58,6 +58,7 @@ body { margin: 0; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
 .ms-help pre { background: #f3f4f6; padding: 8px; border-radius: 6px; font-size: 12px; white-space: pre-wrap; user-select: text; }
 .ms-help h3 { font-size: 14px; margin: 12px 0 4px; }
 .ms-tablet { width: 340px; }
+.ms-topbar button.ms-toggle.on { border-color: var(--ms-accent); color: var(--ms-accent); background: var(--ms-accent-soft); }
 .ms-tablet-qr { display: flex; justify-content: center; align-items: center; height: 248px; color: var(--ms-muted); }
 .ms-tablet-qr img { image-rendering: pixelated; border: 4px solid #fff; }
 .ms-tablet-ok { color: #16a34a; font-weight: 600; }

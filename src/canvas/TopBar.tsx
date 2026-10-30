@@ -6,7 +6,7 @@ import { LayoutPicker } from './PageLayout'
 import { convertInkToEquation, convertStatusAtom, selectedInk } from '../ocr/convert'
 import { connectionAtom } from '../state'
 import { submitAiRequest } from '../sync/client'
-import { isRemote, syncStatusAtom } from '../sync/pairing'
+import { followViewAtom, isRemote, setFollowView, syncStatusAtom } from '../sync/pairing'
 import { TabletButton } from './TabletPanel'
 
 export function TopBar() {
@@ -17,6 +17,7 @@ export function TopBar() {
 	const inkSelected = useValue('inkSelected', () => selectedInk(editor).length > 0, [editor])
 	const convert = useValue('convert', () => convertStatusAtom.get(), [])
 	const sync = useValue('sync', () => syncStatusAtom.get(), [])
+	const follow = useValue('follow', () => followViewAtom.get(), [])
 
 	const status = isRemote
 		? !conn.server
@@ -47,6 +48,15 @@ export function TopBar() {
 				<button onClick={toggleFullscreen} title="Use the whole screen for drawing">Fullscreen</button>
 			) : (
 				<TabletButton />
+			)}
+			{(isRemote || sync.tablets > 0) && (
+				<button
+					onClick={() => setFollowView(!follow)}
+					className={follow ? 'ms-toggle on' : 'ms-toggle'}
+					title="Panning, zooming or changing page on one screen moves the other one too"
+				>
+					Same view: {follow ? 'on' : 'off'}
+				</button>
 			)}
 			<button
 				onClick={() =>

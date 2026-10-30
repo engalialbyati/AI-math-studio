@@ -29,6 +29,22 @@ export const syncStatusAtom = atom('syncStatus', {
 	synced: false, // tablet: loaded the PC's document and receives live changes
 })
 
+// "Same view": panning, zooming or changing page on one screen moves the other screens too.
+function loadFollow() {
+	try {
+		return localStorage.getItem('ms-same-view') !== '0'
+	} catch {
+		return true
+	}
+}
+export const followViewAtom = atom('followView', loadFollow())
+export function setFollowView(on: boolean) {
+	followViewAtom.set(on)
+	try {
+		localStorage.setItem('ms-same-view', on ? '1' : '0')
+	} catch {}
+}
+
 export function pairUrl(address: string, token: string) {
 	return `http://${address}:${location.port || '5173'}/?pair=${encodeURIComponent(token)}`
 }

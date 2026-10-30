@@ -58,7 +58,7 @@ class AppState {
 			try {
 				const msg = JSON.parse(String(raw)) as ClientToServer
 				if (msg.type === 'doc') this.docClient = ws
-				if (msg.type === 'sync' || msg.type === 'syncSnapshot') this.onSync(ws, msg)
+				if (msg.type === 'sync' || msg.type === 'syncSnapshot' || msg.type === 'view') this.onSync(ws, msg)
 				else this.onMessage(msg)
 			} catch (err) {
 				console.error('[ws] bad message', err)
@@ -84,7 +84,7 @@ class AppState {
 	}
 
 	// Relay canvas changes between the PC app and paired tablets.
-	private onSync(from: WebSocket, msg: Extract<ClientToServer, { type: 'sync' | 'syncSnapshot' }>) {
+	private onSync(from: WebSocket, msg: Extract<ClientToServer, { type: 'sync' | 'syncSnapshot' | 'view' }>) {
 		if (msg.type === 'syncSnapshot') {
 			const entry = [...this.clients].find(([, c]) => c.id === msg.for)
 			if (!entry) return
@@ -96,6 +96,12 @@ class AppState {
 			return
 		}
 		if (!this.clients.get(from)?.synced) return
+		if (msg.type === 'view') {
+			// Only the latest view matters: not buffered for tablets still loading.
+			const data = JSON.stringify(msg satisfies ServerToClient)
+			for (const [ws, c] of this.clients) if (ws !== from && c.synced) ws.send(data)
+			return
+		}
 		const data = JSON.stringify({ type: 'sync', diff: msg.diff } satisfies ServerToClient)
 		for (const [ws, c] of this.clients) {
 			if (ws === from) continue

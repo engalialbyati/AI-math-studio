@@ -60,6 +60,7 @@ export type ClientToServer =
 	| { type: 'checkLimits' }
 	| { type: 'sync'; diff: SyncDiff }
 	| { type: 'syncSnapshot'; for: string; snapshot: unknown }
+	| { type: 'view'; pageId: string; bounds: Box } // what this screen shows; others follow it
 
 // Model and effort for the built-in agent; empty means the user's Claude Code defaults.
 export interface AgentOptions {
@@ -102,4 +103,5 @@ export type ServerToClient =
 	| { type: 'syncRequest'; for: string } // host: send your document for this tablet
 	| { type: 'syncSnapshot'; snapshot: unknown } // tablet: load this document
 	| { type: 'syncStatus'; hosts: number; tablets: number }
+	| { type: 'view'; pageId: string; bounds: Box }
 	| { type: 'pairInfo'; token: string; addresses: string[] } // host only

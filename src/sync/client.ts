@@ -13,7 +13,7 @@ import { embeddedSnapshot } from '../export/document'
 import { agentOptionsAtom, chatAtom, connectionAtom, getEquationShapes, limitsAtom, requestsAtom, scopeAtom, usageAtom, type ChatMessage, type Region } from '../state'
 import type { AgentOptions } from './protocol'
 import type { AiRequest, Box, ClientToServer, DocSnapshot, ServerToClient, SyncDiff } from './protocol'
-import { isRemote, pairInfoAtom, pairToken, syncStatusAtom } from './pairing'
+import { followViewAtom, isRemote, pairInfoAtom, pairToken, syncStatusAtom } from './pairing'
 
 // In dev the PC page (Vite, 5173) talks to the server on 3001 and a tablet goes through Vite's /ws proxy.
 // The desktop app serves the page and /ws from one port, so both use the page's own host there.
@@ -252,6 +252,16 @@ function applyRemote(editor: Editor, fn: () => void) {
 export function connectServer(editor: Editor) {
 	let stopped = false
 	let fitted = false // tablet: zoomed to the PC's drawing once
+	// Same view: when a remote view is applied, the camera move it causes is not sent back.
+	let viewAppliedAt = 0
+	let viewTimer: ReturnType<typeof setTimeout> | undefined
+	const sendView = () => {
+		const st = syncStatusAtom.get()
+		if (!followViewAtom.get() || (isRemote ? !st.synced : !st.tablets)) return
+		if (Date.now() - viewAppliedAt < 300) return
+		const b = editor.getViewportPageBounds()
+		send({ type: 'view', pageId: editor.getCurrentPageId(), bounds: { x: b.x, y: b.y, w: b.w, h: b.h } })
+	}
 	let docTimer: ReturnType<typeof setTimeout> | undefined
 	const pushDoc = () => {
 		if (isRemote) return // the PC app is the one MCP tools read and drive
@@ -289,10 +299,18 @@ export function connectServer(editor: Editor) {
 				send({ type: 'syncSnapshot', for: msg.for, snapshot: snap.document })
 			} else if (msg.type === 'syncSnapshot') {
 				applyRemote(editor, () => loadSnapshot(editor.store, { document: msg.snapshot as any }))
+				viewAppliedAt = Date.now() // the PC's view follows; don't push the tablet's old one
 				syncStatusAtom.update((s) => ({ ...s, synced: true }))
-				if (!fitted && editor.getCurrentPageShapeIds().size) editor.zoomToFit()
+				if (!fitted && !followViewAtom.get() && editor.getCurrentPageShapeIds().size) editor.zoomToFit()
 				fitted = true
+			} else if (msg.type === 'view') {
+				if (!followViewAtom.get()) return
+				viewAppliedAt = Date.now()
+				if (editor.getCurrentPageId() !== msg.pageId && editor.getPage(msg.pageId as any)) editor.setCurrentPage(msg.pageId as any)
+				editor.zoomToBounds(msg.bounds, { inset: 0, immediate: true, force: true })
 			} else if (msg.type === 'syncStatus') {
+				// A tablet just joined: once it has loaded the document, show it what the PC shows.
+				if (!isRemote && msg.tablets > syncStatusAtom.get().tablets) setTimeout(sendView, 1500)
 				syncStatusAtom.update((s) => ({ ...s, hosts: msg.hosts, tablets: msg.tablets }))
 			} else if (msg.type === 'pairInfo') {
 				pairInfoAtom.set({ token: msg.token, addresses: msg.addresses })
@@ -319,6 +337,17 @@ export function connectServer(editor: Editor) {
 	open()
 
 	const unlisten = editor.store.listen(pushDoc, { scope: 'document' })
+	// Same view: send this screen's camera and page while it changes (about 25 times a second).
+	const stopView = react('send-view', () => {
+		editor.getViewportPageBounds()
+		editor.getCurrentPageId()
+		followViewAtom.get()
+		if (viewTimer) return
+		viewTimer = setTimeout(() => {
+			viewTimer = undefined
+			sendView()
+		}, 40)
+	})
 	// Live canvas sync: the PC sends to paired tablets, a tablet sends once it holds the PC's document.
 	const unlistenSync = editor.store.listen(
 		({ changes }) => {
@@ -340,6 +369,8 @@ export function connectServer(editor: Editor) {
 		stopped = true
 		unlisten()
 		unlistenSync()
+		stopView()
+		clearTimeout(viewTimer)
 		stopReact()
 		socket?.close()
 	}
