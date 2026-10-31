@@ -14,6 +14,9 @@
     "desktop": "node scripts/build-desktop.mjs && electron-builder --win nsis"
   },
   "dependencies": {
+    "@fontsource-variable/fraunces": "^5.3.0",
+    "@fontsource/caveat": "^5.3.0",
+    "@fontsource/ibm-plex-sans": "^5.3.0",
     "@modelcontextprotocol/sdk": "^1.32.2",
     "express": "^5.3.0",
     "katex": "^0.19.1",
@@ -62,14 +65,6 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "shortcutName": "Math Studio"
-    },
-    "protocols": [
-      {
-        "name": "Math Studio sign-in",
-        "schemes": [
-          "mathstudio"
-        ]
-      }
-    ]
+    }
   }
 }

@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Math Studio: calculations that stay alive</title>
+		<meta
+			name="description"
+			content="Write engineering calculations the way you would on a calc pad. Math Studio solves the calculus, keeps every value linked, and redraws the diagram when a number changes."
+		/>
+		<meta name="theme-color" content="#f3f0e6" />
+	</head>
+	<body>
+		<header class="titleblock" aria-label="Math Studio">
+			<a class="tb-cell tb-project" href="/">
+				<span class="tb-label">Project</span>
+				<span class="tb-logo"><span aria-hidden="true">∫</span> Math Studio</span>
+			</a>
+			<nav class="tb-cell tb-nav" aria-label="Main">
+				<span class="tb-label">Contents</span>
+				<span class="tb-links">
+					<a href="#sheet-1">Calculate</a>
+					<a href="#sheet-2">Sketch</a>
+					<a href="#sheet-3">Check</a>
+					<a href="#get">Get the apps</a>
+				</span>
+			</nav>
+			<div class="tb-cell tb-by">
+				<span class="tb-label">Calc. by</span>
+				<span class="tb-hand">you</span>
+			</div>
+			<div class="tb-cell tb-by">
+				<span class="tb-label">Checked by</span>
+				<span class="tb-hand">Claude</span>
+			</div>
+			<div class="tb-cell tb-action">
+				<a class="btn btn-ink" href="/app">Open Math Studio</a>
+			</div>
+		</header>
+
+		<main>
+			<section class="sheet sheet-hero" id="sheet-1" aria-labelledby="hero-title">
+				<div class="sheet-head">
+					<h1 id="hero-title">Calculations that stay&nbsp;alive.</h1>
+					<p class="lede">
+						Write your working the way you would on a calc pad. Math Studio solves the calculus, keeps every value linked,
+						and redraws the diagram the moment a number changes.
+					</p>
+					<div class="actions">
+						<a class="btn btn-ink" href="/app">Open Math Studio</a>
+						<a class="btn btn-line" href="/app">Create a free account</a>
+					</div>
+				</div>
+
+				<div class="pad" role="group" aria-label="Live calculation, edit any line">
+					<div class="pad-subject">
+						<span class="tb-label">Subject</span>
+						<span class="tb-hand">Simply supported beam, uniform load</span>
+					</div>
+					<svg class="pad-sketch" viewBox="0 0 320 120" aria-hidden="true">
+						<g class="ink" fill="none" stroke-linecap="round" stroke-linejoin="round">
+							<path d="M30 70 L290 70" stroke-width="3.2" />
+							<path d="M30 72 L20 92 L40 92 Z" stroke-width="2" />
+							<path d="M290 72 L280 92 L300 92 Z" stroke-width="2" />
+							<path d="M276 96 L304 96" stroke-width="2" />
+							<path d="M34 34 L286 34" stroke-width="1.6" />
+							<g stroke-width="1.6">
+								<path d="M44 34 V62 M38 55 L44 63 L50 55" />
+								<path d="M86 34 V62 M80 55 L86 63 L92 55" />
+								<path d="M128 34 V62 M122 55 L128 63 L134 55" />
+								<path d="M170 34 V62 M164 55 L170 63 L176 55" />
+								<path d="M212 34 V62 M206 55 L212 63 L218 55" />
+								<path d="M254 34 V62 M248 55 L254 63 L260 55" />
+							</g>
+							<path d="M30 108 L290 108 M30 102 V114 M290 102 V114" stroke-width="1.2" />
+						</g>
+						<text class="sketch-note" x="160" y="24" text-anchor="middle" id="sketch-q">q</text>
+						<text class="sketch-note" x="160" y="119" text-anchor="middle" id="sketch-l">L</text>
+					</svg>
+
+					<ol class="lines" id="lines"></ol>
+
+					<div class="pad-controls">
+						<label class="dial">
+							<span class="dial-name">L</span>
+							<input type="range" id="dial-L" min="2" max="12" step="0.5" value="6" />
+							<output id="out-L">6 m</output>
+						</label>
+						<label class="dial">
+							<span class="dial-name">q</span>
+							<input type="range" id="dial-q" min="1" max="30" step="1" value="10" />
+							<output id="out-q">10 kN/m</output>
+						</label>
+					</div>
+
+					<figure class="plot">
+						<svg id="plot" viewBox="0 0 600 260" role="img" aria-label="Shear force V and bending moment M along the beam"></svg>
+						<figcaption>
+							<span class="key key-m">M(x) bending moment</span>
+							<span class="key key-v">V(x) shear</span>
+						</figcaption>
+					</figure>
+					<p class="margin-note" aria-hidden="true">change any line, it all updates</p>
+				</div>
+			</section>
+
+			<section class="sheet sheet-text" id="sheet-2" aria-labelledby="s2">
+				<div class="sheet-col">
+					<h2 id="s2">Sketch with the pen you already&nbsp;use.</h2>
+					<p>
+						Draw the free-body diagram on your tablet and it appears on the PC as you draw. Pan on one screen and the other
+						follows. The eraser takes out only the part of a stroke it touches.
+					</p>
+					<p>
+						Handwritten equations convert to typed ones offline, so the figure and the working sit on the same page and stay
+						editable.
+					</p>
+				</div>
+				<ul class="ticks">
+					<li>Windows app, Android tablet app, or any browser</li>
+					<li>Your files saved to your account, open on every device</li>
+					<li>Integrals, derivatives, limits and Macaulay brackets in plain text</li>
+					<li>Sliders on any constant, the whole sheet recalculates</li>
+				</ul>
+			</section>
+
+			<section class="sheet sheet-text" id="sheet-3" aria-labelledby="s3">
+				<div class="sheet-col">
+					<h2 id="s3">Checked by Claude, on your own&nbsp;account.</h2>
+					<p>
+						Select a sketch and its equations and ask Claude to turn them into a live widget: a draggable beam, a moment
+						diagram that follows your sliders. Or ask it to review every equation for sign errors, missing integration
+						constants and units, with a note beside each fix.
+					</p>
+					<p>
+						Connect your own Claude plan or API key in the app. Your requests run on your account and touch only your
+						canvas.
+					</p>
+				</div>
+				<blockquote class="stamp" aria-label="Example review note">
+					<p>M(0) should be 0 at the pin: added C&nbsp;=&nbsp;0. Units now kN·m.</p>
+					<footer>Claude, review note</footer>
+				</blockquote>
+			</section>
+
+			<section class="sheet sheet-get" id="get" aria-labelledby="get-title">
+				<h2 id="get-title">Open your pad.</h2>
+				<p class="lede">Runs in the browser. Use the apps for the pen and for working full screen.</p>
+				<div class="get-row">
+					<a class="get" href="/app">
+						<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="6" width="26" height="18" rx="2" /><path d="M3 11h26M7 8.5h.01M10 8.5h.01" /></svg>
+						<span class="get-name">Browser</span>
+						<span class="get-meta">Sign in or create an account</span>
+					</a>
+					<a class="get" href="/downloads/MathStudio-Setup.exe" data-download>
+						<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="4" y="5" width="24" height="16" rx="1.5" /><path d="M12 27h8M16 21v6" /></svg>
+						<span class="get-name">Windows</span>
+						<span class="get-meta">Installer, 64-bit</span>
+					</a>
+					<a class="get" href="/downloads/MathStudio-Tablet.apk" data-download>
+						<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="7" y="3" width="18" height="26" rx="2.5" /><path d="M14 25.5h4" /><path d="M21 9l-6 9" /></svg>
+						<span class="get-name">Android tablet</span>
+						<span class="get-meta">APK, Android 7 or newer</span>
+					</a>
+				</div>
+			</section>
+		</main>
+
+		<footer class="foot">
+			<span><span aria-hidden="true">∫</span> Math Studio</span>
+			<a href="/app">Sign in</a>
+		</footer>
+
+		<script type="module" src="/src/landing/main.ts"></script>
+	</body>
+</html>

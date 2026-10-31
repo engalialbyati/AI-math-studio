@@ -1,14 +1,12 @@
 import { atom, type Editor } from 'tldraw'
 import { docNameAtom, load, serialize } from '../export/document'
 
-// Hosted server: Google account, the user's files on the server, and autosave.
+// Hosted server: the user's account, their files on the server, and autosave.
 
 export interface HostedUser {
 	id: string
 	email: string
 	name: string
-	picture?: string
-	admin: boolean
 }
 export interface ServerFile {
 	id: string
@@ -18,7 +16,7 @@ export interface ServerFile {
 	size: number
 }
 
-export const hostedAtom = atom<{ hosted: boolean; user: HostedUser | null; devLogin?: boolean }>('hosted', { hosted: false, user: null })
+export const hostedAtom = atom<{ hosted: boolean; user: HostedUser | null }>('hosted', { hosted: false, user: null })
 // The server file on the canvas (null: unsaved canvas).
 export const currentFileAtom = atom<{ id: string; name: string } | null>('currentFile', null)
 export const saveStateAtom = atom<'saved' | 'saving' | 'unsaved' | 'error'>('saveState', 'saved')
@@ -49,6 +47,12 @@ export const deleteFile = (id: string) => api(`/api/files/${id}`, { method: 'DEL
 export const renameFile = (id: string, name: string) =>
 	api<ServerFile>(`/api/files/${id}?name=${encodeURIComponent(name)}`, { method: 'PUT' })
 export const createDeviceLink = () => api<{ url: string }>('/api/device-link', { method: 'POST' })
+
+// Sign in, create an account or change the password; throws the server's message on failure.
+export async function authRequest(path: string, body: Record<string, unknown>) {
+	const res = await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+	if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `HTTP ${res.status}`)
+}
 
 export async function signOut() {
 	await fetch('/auth/logout', { method: 'POST' })

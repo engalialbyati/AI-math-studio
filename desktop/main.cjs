@@ -1,5 +1,5 @@
 // Math Studio desktop app. Two ways to run:
-// - Server: opens your hosted Math Studio (sign in with Google; files live on the server).
+// - Server: opens your hosted Math Studio (sign in with email and password; files live there).
 // - This PC only: runs the local server (MCP + WebSocket + web app) inside Electron, no sign-in;
 //   paired tablets on the same Wi-Fi reach it directly.
 const { app, BrowserWindow, Menu, dialog, ipcMain, shell } = require('electron')
@@ -9,7 +9,6 @@ const { pathToFileURL } = require('node:url')
 
 const PORT = 3001
 const LOCAL_URL = `http://localhost:${PORT}/`
-const PROTOCOL = 'mathstudio' // mathstudio://auth?url=... hands a browser sign-in back to the app
 
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json')
 function readSettings() {
@@ -29,11 +28,7 @@ if (!app.requestSingleInstanceLock()) {
 } else {
 	let win = null
 	let localStarted = false
-	let pendingAuth = process.argv.find((a) => a.startsWith(`${PROTOCOL}://`)) ?? null
-	app.setAsDefaultProtocolClient(PROTOCOL)
-
 	const settings = () => readSettings()
-	const serverUrl = () => settings().mode === 'server' && settings().serverUrl
 
 	async function startLocal() {
 		if (localStarted) return true
@@ -59,28 +54,10 @@ if (!app.requestSingleInstanceLock()) {
 		}
 	}
 
-	// Sign-in link from the browser: only for the configured server.
-	function handleAuthUrl(raw) {
-		try {
-			const u = new URL(raw)
-			const link = new URL(u.searchParams.get('url') ?? '')
-			const server = serverUrl()
-			if (!server || link.origin !== new URL(server).origin || link.pathname !== '/auth/link') return
-			win?.loadURL(link.href)
-		} catch {}
-	}
-
 	async function openMain() {
 		const s = settings()
 		if (!s.mode) return win.loadFile(path.join(__dirname, 'setup.html'))
-		if (s.mode === 'server') {
-			win.loadURL(s.serverUrl)
-			if (pendingAuth) {
-				handleAuthUrl(pendingAuth)
-				pendingAuth = null
-			}
-			return
-		}
+		if (s.mode === 'server') return win.loadURL(new URL('app', s.serverUrl).href)
 		if (await startLocal()) win.loadURL(LOCAL_URL)
 		else app.quit()
 	}
@@ -97,15 +74,6 @@ if (!app.requestSingleInstanceLock()) {
 		win.webContents.setWindowOpenHandler(({ url }) => {
 			if (/^https?:/.test(url)) shell.openExternal(url)
 			return { action: 'deny' }
-		})
-		// Google sign-in happens in the system browser, which hands back a mathstudio:// link.
-		win.webContents.on('will-navigate', (e, url) => {
-			const u = new URL(url)
-			if (u.pathname === '/auth/google') {
-				e.preventDefault()
-				u.searchParams.set('app', '1')
-				shell.openExternal(u.href)
-			}
 		})
 		win.on('closed', () => (win = null))
 		openMain()
@@ -136,9 +104,7 @@ if (!app.requestSingleInstanceLock()) {
 	})
 	ipcMain.handle('ms:settings', (e) => (fromSetup(e) ? settings() : {}))
 
-	app.on('second-instance', (_e, argv) => {
-		const auth = argv.find((a) => a.startsWith(`${PROTOCOL}://`))
-		if (auth) handleAuthUrl(auth)
+	app.on('second-instance', () => {
 		if (!win) return
 		if (win.isMinimized()) win.restore()
 		win.focus()

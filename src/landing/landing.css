@@ -1,0 +1,215 @@
+/* Math Studio landing: an engineer's calculation pad. Warm paper, faint green grid, ink and red pencil. */
+:root {
+	--paper: #f3f0e6;
+	--paper-deep: #e9e4d6;
+	--grid: rgba(64, 120, 96, 0.13);
+	--grid-major: rgba(64, 120, 96, 0.22);
+	--ink: #1b2740;
+	--ink-soft: #46506a;
+	--ink-faint: rgba(27, 39, 64, 0.18);
+	--pencil: #b0402c;
+	--display: 'Fraunces Variable', Georgia, serif;
+	--hand: 'Caveat', 'Segoe Print', cursive;
+	--body: 'IBM Plex Sans', system-ui, sans-serif;
+	--ease: cubic-bezier(0.16, 1, 0.3, 1);
+	color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 24px; }
+body {
+	margin: 0;
+	background: var(--paper);
+	color: var(--ink);
+	font: 400 17px/1.6 var(--body);
+	caret-color: var(--pencil);
+	-webkit-font-smoothing: antialiased;
+}
+::selection { background: rgba(176, 64, 44, 0.2); color: var(--ink); }
+:focus-visible { outline: 2px solid var(--pencil); outline-offset: 3px; border-radius: 2px; }
+html { scrollbar-color: var(--ink-faint) var(--paper); }
+a { color: inherit; text-underline-offset: 0.2em; text-decoration-thickness: 1px; }
+
+/* Title block, as on the corner of a drawing sheet */
+.titleblock {
+	display: grid;
+	grid-template-columns: minmax(180px, 1.2fr) minmax(260px, 2fr) 0.8fr 0.8fr auto;
+	max-width: 1180px;
+	margin: 24px auto 0;
+	border: 1.5px solid var(--ink);
+	background: var(--paper);
+}
+.tb-cell { display: flex; flex-direction: column; justify-content: center; gap: 2px; padding: 10px 16px; border-right: 1px solid var(--ink); min-width: 0; }
+.tb-cell:last-child { border-right: 0; }
+.tb-label { font: 500 11px/1 var(--body); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); }
+.tb-project { text-decoration: none; }
+.tb-logo { font: 600 22px/1.2 var(--display); letter-spacing: -0.01em; }
+.tb-logo span { font-style: italic; margin-right: 2px; }
+.tb-hand { font: 500 24px/1.1 var(--hand); color: var(--ink); }
+.tb-links { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 15px; }
+.tb-links a { text-decoration: none; padding: 2px 0; background: linear-gradient(var(--ink), var(--ink)) 0 100% / 0 1px no-repeat; transition: background-size 0.35s var(--ease); }
+.tb-links a:hover { background-size: 100% 1px; }
+.tb-action { padding: 10px 14px; }
+
+/* Buttons */
+.btn {
+	display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+	min-height: 46px; padding: 0 22px; border-radius: 3px;
+	font: 600 16px/1 var(--body); text-decoration: none; white-space: nowrap;
+	transition: transform 0.25s var(--ease), box-shadow 0.25s var(--ease), background-color 0.25s var(--ease);
+}
+.btn-ink { background: var(--ink); color: var(--paper); box-shadow: 0 2px 6px rgba(27, 39, 64, 0.22); }
+.btn-ink:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(27, 39, 64, 0.24); }
+.btn-ink:active { transform: translateY(0); box-shadow: 0 1px 3px rgba(27, 39, 64, 0.25); }
+.btn-line { border: 1.5px solid var(--ink); color: var(--ink); }
+.btn-line:hover { background: rgba(27, 39, 64, 0.06); }
+
+/* Sheets */
+main { max-width: 1180px; margin: 0 auto; padding: 0 0 40px; }
+.sheet { border: 1.5px solid var(--ink); border-top: 0; padding: clamp(28px, 5vw, 64px); background: var(--paper); }
+h1, h2 { font-family: var(--display); font-weight: 600; letter-spacing: -0.025em; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(2.6rem, 6.4vw, 5.4rem); line-height: 0.98; max-width: 13ch; font-variation-settings: 'SOFT' 60, 'WONK' 1; }
+h2 { font-size: clamp(1.9rem, 3.6vw, 3rem); line-height: 1.05; max-width: 18ch; margin-bottom: 20px; }
+.lede { font-size: clamp(1.05rem, 1.6vw, 1.25rem); color: var(--ink-soft); max-width: 56ch; margin: 22px 0 0; }
+p { max-width: 65ch; }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
+
+/* The live calc pad */
+.pad {
+	position: relative;
+	margin-top: clamp(36px, 5vw, 56px);
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+	grid-template-areas: 'subject subject' 'lines sketch' 'lines plot' 'controls plot';
+	gap: 18px 40px;
+	padding: 26px clamp(18px, 3vw, 36px) 30px clamp(56px, 6vw, 84px);
+	background-color: #f7f5ec;
+	background-image:
+		linear-gradient(var(--grid-major) 1px, transparent 1px),
+		linear-gradient(90deg, var(--grid-major) 1px, transparent 1px),
+		linear-gradient(var(--grid) 1px, transparent 1px),
+		linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+	background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px;
+	border: 1px solid var(--ink-faint);
+	box-shadow: 0 1px 2px rgba(27, 39, 64, 0.08), 0 18px 40px -18px rgba(27, 39, 64, 0.28);
+}
+/* Red margin rule */
+.pad::before { content: ''; position: absolute; top: 0; bottom: 0; left: clamp(40px, 4.4vw, 62px); width: 1.5px; background: rgba(176, 64, 44, 0.45); }
+.pad-subject { grid-area: subject; display: flex; align-items: baseline; gap: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--ink-faint); }
+.pad-subject .tb-hand { font-size: 26px; }
+
+.pad-sketch { grid-area: sketch; width: 100%; max-width: 420px; justify-self: center; }
+.ink { stroke: var(--ink); }
+.sketch-note { font: 600 17px var(--hand); fill: var(--pencil); }
+
+.lines { grid-area: lines; list-style: none; margin: 0; padding: 0; counter-reset: line; }
+.lines li { position: relative; padding: 8px 0 10px; border-bottom: 1px dashed var(--ink-faint); counter-increment: line; }
+.lines li::before { content: counter(line); position: absolute; left: -40px; top: 13px; width: 24px; text-align: right; font: 500 18px/1 var(--hand); color: var(--pencil); }
+.lines input {
+	width: 100%; padding: 4px 6px; margin-left: -6px; border: 1px solid transparent; border-radius: 3px;
+	background: transparent; color: var(--ink); font: 500 16px/1.4 var(--body); letter-spacing: 0.01em;
+	transition: border-color 0.2s var(--ease), background-color 0.2s var(--ease);
+}
+.lines input:hover { border-color: var(--ink-faint); }
+.lines input:focus { outline: none; border-color: var(--ink); background: rgba(255, 255, 255, 0.55); }
+.line-tex { min-height: 26px; font-size: 19px; color: var(--ink); overflow-x: auto; scrollbar-width: thin; }
+.line-result { font-size: 19px; color: var(--pencil); min-height: 0; }
+.line-result:empty { display: none; }
+.line-result.is-error { font: 500 19px/1.3 var(--hand); }
+.katex { font-size: 1.05em; }
+
+.pad-controls { grid-area: controls; display: grid; gap: 10px; align-self: end; }
+.dial { display: grid; grid-template-columns: 22px 1fr 76px; align-items: center; gap: 12px; }
+.dial-name { font: italic 600 20px var(--display); }
+.dial output { font: 500 15px var(--body); font-variant-numeric: tabular-nums; color: var(--ink-soft); text-align: right; }
+.dial input { -webkit-appearance: none; appearance: none; width: 100%; height: 24px; background: transparent; cursor: pointer; }
+.dial input::-webkit-slider-runnable-track { height: 2px; background: var(--ink); }
+.dial input::-moz-range-track { height: 2px; background: var(--ink); }
+.dial input::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -7px; border-radius: 50%; background: var(--paper); border: 2px solid var(--pencil); box-shadow: 0 1px 3px rgba(27, 39, 64, 0.3); }
+.dial input::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--paper); border: 2px solid var(--pencil); }
+
+.plot { grid-area: plot; margin: 0; }
+.plot svg { width: 100%; height: auto; display: block; overflow: visible; }
+.axis { stroke: var(--ink); stroke-width: 1; }
+.axis-label { font: italic 15px var(--display); fill: var(--ink-soft); }
+.curve { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.curve-m { stroke: var(--ink); stroke-width: 3; }
+.curve-m.inking { transition: stroke-dashoffset 1.6s var(--ease); stroke-dashoffset: 0 !important; }
+.curve-v { stroke: var(--pencil); stroke-width: 1.8; stroke-dasharray: 6 5; }
+.peak { fill: var(--paper); stroke: var(--ink); stroke-width: 2; }
+.peak-label { font: 700 20px var(--hand); fill: var(--ink); }
+.plot-msg { font: 500 20px var(--hand); fill: var(--ink-soft); }
+.plot figcaption { display: flex; gap: 22px; margin-top: 6px; font-size: 14px; color: var(--ink-soft); }
+.key::before { content: ''; display: inline-block; width: 22px; vertical-align: middle; margin-right: 8px; border-top: 3px solid var(--ink); }
+.key-v::before { border-top: 2px dashed var(--pencil); }
+
+.margin-note {
+	position: absolute; right: clamp(14px, 3vw, 30px); top: -18px; margin: 0;
+	font: 700 22px/1 var(--hand); color: var(--pencil); transform: rotate(-3deg);
+	background: var(--paper); padding: 2px 8px;
+}
+
+/* Text sheets */
+.sheet-text { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 32px 64px; align-items: start; }
+.sheet-text p { color: var(--ink-soft); margin: 0 0 14px; }
+.ticks { list-style: none; margin: 8px 0 0; padding: 0; }
+.ticks li { position: relative; padding: 10px 0 10px 34px; border-bottom: 1px solid var(--ink-faint); font-size: 16px; }
+.ticks li::before {
+	content: ''; position: absolute; left: 4px; top: 15px; width: 14px; height: 7px;
+	border-left: 2.5px solid var(--pencil); border-bottom: 2.5px solid var(--pencil); transform: rotate(-48deg);
+}
+.stamp {
+	margin: 8px 0 0; padding: 18px 22px; border: 2px solid var(--pencil); border-radius: 4px;
+	color: var(--pencil); transform: rotate(-1.5deg);
+	box-shadow: 0 10px 24px -14px rgba(176, 64, 44, 0.5);
+}
+.stamp p { margin: 0 0 10px; font: 700 26px/1.2 var(--hand); color: var(--pencil); }
+.stamp footer { font: 500 12px var(--body); letter-spacing: 0.08em; text-transform: uppercase; }
+
+/* Get the apps */
+.sheet-get h2 { max-width: none; }
+.sheet-get .lede { margin-top: 0; }
+.get-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 34px; border: 1.5px solid var(--ink); }
+.get {
+	display: grid; grid-template-columns: 40px 1fr; grid-template-rows: auto auto; column-gap: 14px; align-items: center;
+	padding: 22px; text-decoration: none; border-right: 1px solid var(--ink);
+	transition: background-color 0.25s var(--ease);
+}
+.get:last-child { border-right: 0; }
+.get:hover { background: rgba(27, 39, 64, 0.05); }
+.get svg { grid-row: span 2; width: 34px; height: 34px; fill: none; stroke: var(--ink); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.get-name { font: 600 19px/1.2 var(--display); }
+.get-meta { font-size: 14px; color: var(--ink-soft); }
+.get.is-unavailable { cursor: not-allowed; opacity: 0.55; }
+.get.is-unavailable:hover { background: none; }
+
+.foot { max-width: 1180px; margin: 0 auto 40px; display: flex; justify-content: space-between; padding: 0 4px; font-size: 14px; color: var(--ink-soft); }
+
+/* Narrow screens */
+@media (max-width: 980px) {
+	.titleblock { grid-template-columns: 1fr 1fr; margin: 12px 16px 0; }
+	.tb-nav { grid-column: 1 / -1; order: 5; border-top: 1px solid var(--ink); border-right: 0; }
+	.tb-action { grid-column: 1 / -1; order: 6; border-top: 1px solid var(--ink); }
+	.tb-action .btn { width: 100%; }
+	.tb-by:nth-of-type(4) { border-right: 0; }
+	.tb-project { grid-column: 1 / -1; border-right: 0; border-bottom: 1px solid var(--ink); }
+	main, .foot { margin-left: 16px; margin-right: 16px; }
+	.pad { grid-template-columns: 1fr; grid-template-areas: 'subject' 'sketch' 'lines' 'controls' 'plot'; }
+	.sheet-text { grid-template-columns: 1fr; }
+	.get-row { grid-template-columns: 1fr; }
+	.get { border-right: 0; border-bottom: 1px solid var(--ink); }
+	.get:last-child { border-bottom: 0; }
+}
+@media (max-width: 520px) {
+	body { font-size: 16px; }
+	.sheet { padding: 28px 18px; }
+	.pad { padding-left: 46px; padding-right: 14px; }
+	.pad::before { left: 34px; }
+	.lines li::before { left: -36px; }
+	.margin-note { font-size: 19px; top: -16px; }
+	.actions .btn { flex: 1 1 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+	html { scroll-behavior: auto; }
+	* { transition: none !important; }
+}

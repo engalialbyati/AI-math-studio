@@ -164,8 +164,11 @@ body { margin: 0; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
 .ms-home-card { width: 100%; max-width: 640px; background: #fff; border-radius: 14px; box-shadow: 0 6px 30px #0002; padding: 18px 20px; }
 .ms-login .ms-home-card { max-width: 380px; text-align: center; }
 .ms-login h1 { font-size: 26px; margin: 8px 0; }
-.ms-google { display: inline-block; margin: 12px 0 4px; padding: 10px 18px; border-radius: 8px; background: var(--ms-accent); color: #fff; text-decoration: none; font-weight: 600; }
-.ms-dev-login { display: flex; gap: 6px; margin-top: 14px; justify-content: center; }
+.ms-login-form { display: flex; flex-direction: column; gap: 8px; margin: 12px 0 6px; text-align: left; }
+.ms-login-form input { padding: 9px 10px; font: inherit; border: 1px solid var(--ms-border); border-radius: 8px; }
+.ms-login-form button.ms-primary, .ms-login .ms-primary { padding: 9px 16px; border-radius: 8px; border: 1px solid var(--ms-accent); background: var(--ms-accent); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+.ms-login-switch { font-size: 13px; color: var(--ms-muted); }
+.ms-login-switch button { border: 0; background: none; color: var(--ms-accent); font: inherit; cursor: pointer; padding: 0; text-decoration: underline; }
 .ms-home-head { display: flex; align-items: center; gap: 10px; }
 .ms-home-head .ms-logo { font-size: 18px; margin-right: auto; }
 .ms-home-user { display: inline-flex; align-items: center; gap: 6px; color: var(--ms-muted); font-size: 13px; }

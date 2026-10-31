@@ -5,7 +5,7 @@ import express from 'express'
 import { requireUser, sameOrigin, type User } from './auth'
 import { config } from './config'
 
-// Each user's documents: <DATA_DIR>/users/<hash of Google id>/<file id>.mstudio plus index.json.
+// Each user's documents: <DATA_DIR>/users/<hash of account id>/<file id>.mstudio plus index.json.
 
 export interface FileMeta {
 	id: string
