@@ -1,0 +1,34 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'app.mathstudio.tablet'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'app.mathstudio.tablet'
+        minSdk 24
+        targetSdk 35
+        versionCode 1
+        versionName '0.1.0'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    // QR scanning on the device's camera; works without Google Play services (Huawei).
+    implementation 'com.journeyapps:zxing-android-embedded:4.3.0'
+    // The scanner asks for camera permission through AndroidX but does not declare it.
+    implementation 'androidx.core:core:1.13.1'
+}

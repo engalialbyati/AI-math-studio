@@ -41,6 +41,13 @@ export interface AiRequest {
 	createdAt: number
 }
 
+// tldraw store changes (RecordsDiff), relayed between the PC app and paired tablets.
+export interface SyncDiff {
+	added: Record<string, any>
+	updated: Record<string, [any, any]>
+	removed: Record<string, any>
+}
+
 export type ClientToServer =
 	| { type: 'doc'; doc: DocSnapshot }
 	| { type: 'aiRequest'; request: AiRequest }
@@ -51,6 +58,9 @@ export type ClientToServer =
 	| { type: 'chatReset' }
 	| { type: 'agentOptions'; options: AgentOptions }
 	| { type: 'checkLimits' }
+	| { type: 'sync'; diff: SyncDiff }
+	| { type: 'syncSnapshot'; for: string; snapshot: unknown }
+	| { type: 'view'; pageId: string; bounds: Box } // what this screen shows; others follow it
 
 // Model and effort for the built-in agent; empty means the user's Claude Code defaults.
 export interface AgentOptions {
@@ -89,3 +99,9 @@ export type ServerToClient =
 	| { type: 'requestStatus'; id: string; status: 'pending' | 'working' | 'done' | 'error'; message?: string }
 	| { type: 'status'; claudeActive: boolean; claudeWaiting: boolean; agentAvailable: boolean; agentBusy: boolean }
 	| { type: 'agent'; event: AgentEvent }
+	| { type: 'sync'; diff: SyncDiff }
+	| { type: 'syncRequest'; for: string } // host: send your document for this tablet
+	| { type: 'syncSnapshot'; snapshot: unknown } // tablet: load this document
+	| { type: 'syncStatus'; hosts: number; tablets: number }
+	| { type: 'view'; pageId: string; bounds: Box }
+	| { type: 'pairInfo'; token: string; addresses: string[] } // host only

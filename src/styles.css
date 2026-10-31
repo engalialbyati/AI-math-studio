@@ -43,12 +43,12 @@ body { margin: 0; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
 .ms-widget-code { width: 100%; box-sizing: border-box; border: 0; resize: none; font: 12px ui-monospace, Consolas, monospace; padding: 8px; outline: none; }
 
 /* Top bar */
-.ms-topbar { pointer-events: all; display: flex; gap: 6px; align-items: center; margin: 8px; padding: 4px 6px; background: #fff;
+.ms-topbar { pointer-events: all; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; align-items: center; max-width: calc(100% - 16px); box-sizing: border-box; margin: 8px; padding: 4px 6px; background: #fff;
 	border-radius: 10px; box-shadow: 0 1px 6px #0002; font-size: 13px; position: relative; }
-.ms-topbar button { border: 1px solid var(--ms-border); background: #fff; border-radius: 6px; padding: 4px 9px; cursor: pointer; font-size: 12px; }
+.ms-topbar button { white-space: nowrap; border: 1px solid var(--ms-border); background: #fff; border-radius: 6px; padding: 4px 9px; cursor: pointer; font-size: 12px; }
 .ms-topbar button:hover { background: #f9fafb; }
 .ms-convert-msg { font-size: 11px; color: #6b7280; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ms-logo { font-weight: 700; color: var(--ms-accent); padding: 0 6px; }
+.ms-logo { white-space: nowrap; font-weight: 700; color: var(--ms-accent); padding: 0 6px; }
 .ms-status { display: inline-flex; align-items: center; gap: 6px; }
 .ms-status .dot { width: 8px; height: 8px; border-radius: 50%; background: #9ca3af; }
 .ms-status.on .dot { background: #16a34a; }
@@ -57,6 +57,13 @@ body { margin: 0; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
 .ms-help { position: absolute; top: 44px; left: 0; width: 460px; background: #fff; border-radius: 10px; box-shadow: 0 4px 20px #0003; padding: 4px 16px 12px; z-index: 10; font-size: 13px; }
 .ms-help pre { background: #f3f4f6; padding: 8px; border-radius: 6px; font-size: 12px; white-space: pre-wrap; user-select: text; }
 .ms-help h3 { font-size: 14px; margin: 12px 0 4px; }
+.ms-tablet { width: 340px; }
+.ms-topbar button.ms-toggle.on { border-color: var(--ms-accent); color: var(--ms-accent); background: var(--ms-accent-soft); }
+.ms-tablet-qr { display: flex; justify-content: center; align-items: center; height: 248px; color: var(--ms-muted); }
+.ms-tablet-qr img { image-rendering: pixelated; border: 4px solid #fff; }
+.ms-tablet-ok { color: #16a34a; font-weight: 600; }
+.ms-tablet-wait { color: var(--ms-muted); }
+.ms-tablet-note { font-size: 12px; color: var(--ms-muted); }
 .ms-help-close { position: absolute; right: 8px; top: 8px; border: 0 !important; font-size: 18px !important; }
 
 /* AI helper */
@@ -129,7 +136,7 @@ body { margin: 0; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
 .ms-mt-answer { font: inherit; color: inherit; }
 .ms-mt-error { color: var(--ms-error); font-size: 12px; }
 .ms-mt-preview { font-size: 0.75em; color: var(--ms-muted); border-top: 1px dashed var(--ms-border); margin-top: 4px; padding-top: 3px; }
-.ms-top { display: flex; flex-direction: column; align-items: center; }
+.ms-top { display: flex; flex-direction: column; align-items: center; min-width: 0; max-width: 100%; }
 .ms-palette { pointer-events: all; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin: 0 8px 8px; padding: 4px 6px; background: #fff; border: 1px solid var(--ms-border); border-radius: 10px; box-shadow: 0 2px 8px #0000000f; max-width: 760px; }
 .ms-palette-group { display: flex; gap: 2px; padding-right: 6px; border-right: 1px solid var(--ms-border); }
 .ms-palette-group:last-child { border-right: 0; padding-right: 0; }

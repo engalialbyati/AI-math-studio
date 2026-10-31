@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <WebView
+        android:id="@+id/web"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
+    <!-- Shown until paired, and when the PC can't be reached. -->
+    <LinearLayout
+        android:id="@+id/pair"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="32dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="∫ Math Studio"
+            android:textColor="#7C3AED"
+            android:textSize="34sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/message"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:gravity="center"
+            android:maxWidth="520dp"
+            android:text="On the PC, click Connect tablet in Math Studio, then scan the QR code. Both devices must be on the same Wi-Fi."
+            android:textColor="#374151"
+            android:textSize="17sp" />
+
+        <Button
+            android:id="@+id/scan"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:text="Scan QR code" />
+
+        <Button
+            android:id="@+id/retry"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Try again"
+            android:visibility="gone" />
+
+        <EditText
+            android:id="@+id/address"
+            android:layout_width="420dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:hint="…or paste the link shown under the QR code"
+            android:imeOptions="actionGo"
+            android:inputType="textUri"
+            android:singleLine="true" />
+    </LinearLayout>
+</FrameLayout>

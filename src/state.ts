@@ -37,6 +37,22 @@ export interface ChatMessage {
 export const chatAtom = atom<ChatMessage[]>('chat', [])
 export const chatOpenAtom = atom('chatOpen', true)
 
+// Colour / line width / fill panel on the right; can be hidden to free the canvas (tablet).
+function loadStylesShown() {
+	try {
+		return localStorage.getItem('ms-styles-shown') !== '0'
+	} catch {
+		return true
+	}
+}
+export const stylesShownAtom = atom('stylesShown', loadStylesShown())
+export function setStylesShown(on: boolean) {
+	stylesShownAtom.set(on)
+	try {
+		localStorage.setItem('ms-styles-shown', on ? '1' : '0')
+	} catch {}
+}
+
 function loadOptions(): AgentOptions {
 	try {
 		return JSON.parse(localStorage.getItem('ms-agent-options') ?? '{}')

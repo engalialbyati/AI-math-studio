@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import {
+	DefaultStylePanel,
 	DefaultToolbar,
 	DefaultToolbarContent,
 	Tldraw,
 	TldrawUiMenuItem,
 	useIsToolSelected,
 	useTools,
+	useValue,
 	type Editor,
 	type TLComponents,
 	type TLUiOverrides,
@@ -18,17 +20,19 @@ import { SliderShapeUtil } from './canvas/shapes/SliderShape'
 import { MathTextShapeUtil } from './canvas/shapes/MathTextShape'
 import { WidgetShapeUtil } from './canvas/shapes/WidgetShape'
 import { AiHelperTool, EquationTool, MathTextTool, SliderTool } from './canvas/tools/tools'
+import { PartialEraserTool } from './canvas/tools/PartialEraserTool'
 import { PagesBackground } from './canvas/PageLayout'
 import { SymbolPalette } from './canvas/SymbolPalette'
 import { TopBar } from './canvas/TopBar'
 import { openDocument, saveDocument, startFileDrop } from './export/document'
 import { convertInkToEquation } from './ocr/convert'
-import { scopeAtom, startScopeEngine } from './state'
+import { scopeAtom, startScopeEngine, stylesShownAtom } from './state'
 import { connectServer } from './sync/client'
+import { isRemote } from './sync/pairing'
 import './styles.css'
 
 const shapeUtils = [EquationShapeUtil, SliderShapeUtil, WidgetShapeUtil, MathTextShapeUtil]
-const tools = [EquationTool, SliderTool, AiHelperTool, MathTextTool]
+const tools = [EquationTool, SliderTool, AiHelperTool, MathTextTool, PartialEraserTool]
 
 const overrides: TLUiOverrides = {
 	tools(editor, tools) {
@@ -78,7 +82,13 @@ function Toolbar() {
 	)
 }
 
+function StylePanel() {
+	const shown = useValue('stylesShown', () => stylesShownAtom.get(), [])
+	return shown ? <DefaultStylePanel /> : null
+}
+
 const components: TLComponents = {
+	StylePanel,
 	Toolbar,
 	TopPanel: () => (
 		<div className="ms-top">
@@ -101,6 +111,8 @@ export default function App() {
 		const stopScope = startScopeEngine(editor)
 		const stopSync = connectServer(editor)
 		const stopDrop = startFileDrop(editor)
+		// The tablet is there to draw with the pen.
+		if (isRemote) editor.setCurrentTool('draw')
 		return () => {
 			stopDrop()
 			stopScope()
@@ -111,7 +123,7 @@ export default function App() {
 	return (
 		<div style={{ position: 'fixed', inset: 0 }}>
 			<Tldraw
-				persistenceKey="math-studio"
+				persistenceKey={isRemote ? 'math-studio-tablet' : 'math-studio'}
 				shapeUtils={shapeUtils}
 				tools={tools}
 				overrides={overrides}

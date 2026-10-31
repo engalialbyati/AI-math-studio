@@ -1,0 +1,9 @@
+{
+  "name": "math-studio",
+  "productName": "Math Studio",
+  "version": "0.1.0",
+  "description": "A canvas for math: sketch, type equations, draw from a tablet, and let Claude turn sketches into live widgets.",
+  "author": "Math Studio",
+  "main": "main.cjs",
+  "private": true
+}

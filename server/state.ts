@@ -1,17 +1,27 @@
 import type { WebSocket } from 'ws'
 import type { AiRequest, ClientToServer, DocSnapshot, ServerToClient } from '../src/sync/protocol'
 import { Agent } from './agent'
+import { lanAddresses, pairToken } from './pairing'
 
 export interface TrackedRequest extends AiRequest {
 	status: 'pending' | 'working' | 'done' | 'error'
 	message?: string
 }
 
+// A connected browser: the PC app ('host', owns the document) or a paired tablet ('remote').
+interface Client {
+	id: string
+	role: 'host' | 'remote'
+	synced: boolean // remote has loaded a host snapshot and gets live changes
+	pending: string[] // changes that arrived while its snapshot was on the way
+}
+
 // Live mirror of the browser canvas plus the AI request queue.
 class AppState {
 	doc: DocSnapshot | null = null
 	requests = new Map<string, TrackedRequest>()
-	private clients = new Set<WebSocket>()
+	private clients = new Map<WebSocket, Client>()
+	private clientCounter = 0
 	private docClient: WebSocket | null = null // browser whose canvas the mirror reflects
 	private pendingCmds = new Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void; timer: NodeJS.Timeout }>()
 	private waiters = new Set<(r: TrackedRequest | null) => void>()
@@ -31,9 +41,15 @@ class AppState {
 		return this.clients.size > 0
 	}
 
-	addClient(ws: WebSocket) {
-		this.clients.add(ws)
+	addClient(ws: WebSocket, role: Client['role']) {
+		const client: Client = { id: `b${++this.clientCounter}`, role, synced: role === 'host', pending: [] }
+		this.clients.set(ws, client)
 		this.sendStatus(ws)
+		if (role === 'host') ws.send(JSON.stringify({ type: 'pairInfo', token: pairToken, addresses: lanAddresses() } satisfies ServerToClient))
+		this.syncStatus()
+		// A tablet starts from the PC's document; a PC (re)connecting refreshes every tablet.
+		if (role === 'remote') this.requestSnapshot(client)
+		else for (const c of this.clients.values()) if (c.role === 'remote') this.requestSnapshot(c)
 		// Send known plan limits; refresh them when stale (>5 min).
 		const limits = this.agent?.limits
 		if (limits) ws.send(JSON.stringify({ type: 'agent', event: { kind: 'limits', limits } } satisfies ServerToClient))
@@ -42,7 +58,8 @@ class AppState {
 			try {
 				const msg = JSON.parse(String(raw)) as ClientToServer
 				if (msg.type === 'doc') this.docClient = ws
-				this.onMessage(msg)
+				if (msg.type === 'sync' || msg.type === 'syncSnapshot' || msg.type === 'view') this.onSync(ws, msg)
+				else this.onMessage(msg)
 			} catch (err) {
 				console.error('[ws] bad message', err)
 			}
@@ -50,6 +67,55 @@ class AppState {
 		ws.on('close', () => {
 			this.clients.delete(ws)
 			if (this.docClient === ws) this.docClient = null
+			if (role === 'remote') console.log('[ws] tablet disconnected')
+			this.syncStatus()
+		})
+	}
+
+	private hosts() {
+		return [...this.clients].filter(([, c]) => c.role === 'host').map(([ws]) => ws)
+	}
+
+	private requestSnapshot(client: Client) {
+		const host = (this.docClient && this.clients.get(this.docClient)?.role === 'host' ? this.docClient : null) ?? this.hosts().at(-1)
+		client.synced = false
+		client.pending = []
+		host?.send(JSON.stringify({ type: 'syncRequest', for: client.id } satisfies ServerToClient))
+	}
+
+	// Relay canvas changes between the PC app and paired tablets.
+	private onSync(from: WebSocket, msg: Extract<ClientToServer, { type: 'sync' | 'syncSnapshot' | 'view' }>) {
+		if (msg.type === 'syncSnapshot') {
+			const entry = [...this.clients].find(([, c]) => c.id === msg.for)
+			if (!entry) return
+			const [ws, client] = entry
+			ws.send(JSON.stringify({ type: 'syncSnapshot', snapshot: msg.snapshot } satisfies ServerToClient))
+			for (const data of client.pending) ws.send(data)
+			client.pending = []
+			client.synced = true
+			return
+		}
+		if (!this.clients.get(from)?.synced) return
+		if (msg.type === 'view') {
+			// Only the latest view matters: not buffered for tablets still loading.
+			const data = JSON.stringify(msg satisfies ServerToClient)
+			for (const [ws, c] of this.clients) if (ws !== from && c.synced) ws.send(data)
+			return
+		}
+		const data = JSON.stringify({ type: 'sync', diff: msg.diff } satisfies ServerToClient)
+		for (const [ws, c] of this.clients) {
+			if (ws === from) continue
+			if (c.synced) ws.send(data)
+			else c.pending.push(data)
+		}
+	}
+
+	private syncStatus() {
+		const all = [...this.clients.values()]
+		this.broadcast({
+			type: 'syncStatus',
+			hosts: all.filter((c) => c.role === 'host').length,
+			tablets: all.filter((c) => c.role === 'remote').length,
 		})
 	}
 
@@ -95,7 +161,7 @@ class AppState {
 
 	private broadcast(msg: ServerToClient) {
 		const data = JSON.stringify(msg)
-		for (const ws of this.clients) ws.send(data)
+		for (const ws of this.clients.keys()) ws.send(data)
 	}
 
 	private sendStatus(ws?: WebSocket) {
@@ -122,7 +188,7 @@ class AppState {
 
 	// Run a command in the browser and wait for its result.
 	command<T = any>(cmd: string, args: unknown = {}, timeoutMs = 20_000): Promise<T> {
-		const ws = this.docClient ?? [...this.clients].at(-1)
+		const ws = this.docClient ?? this.hosts().at(-1)
 		if (!ws) {
 			return Promise.reject(
 				new Error('Math Studio is not open in a browser. Ask the user to open http://localhost:5173')

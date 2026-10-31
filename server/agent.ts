@@ -8,7 +8,8 @@ import type { AgentEvent, AgentOptions, PlanLimits } from '../src/sync/protocol'
 // chat and AI-helper requests work without a separately opened Claude session.
 // Uses the user's own Claude Code login; no API key lives in the app.
 
-const ROOT = fileURLToPath(new URL('..', import.meta.url))
+// Working folder for Claude Code runs (the desktop app points it at its user-data folder).
+const ROOT = process.env.MATH_STUDIO_ROOT ?? fileURLToPath(new URL('..', import.meta.url))
 
 const SYSTEM = `You are the AI assistant built into Math Studio, a canvas where the user sketches figures and types equations.
 Use the math-studio MCP tools to read and change the canvas: get_canvas / get_canvas_image to look,
