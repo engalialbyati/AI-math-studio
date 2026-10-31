@@ -8,6 +8,7 @@ import { connectionAtom, setStylesShown, stylesShownAtom } from '../state'
 import { submitAiRequest } from '../sync/client'
 import { followViewAtom, isRemote, setFollowView, syncStatusAtom } from '../sync/pairing'
 import { TabletButton } from './TabletPanel'
+import { currentFileAtom, homeOpenAtom, hostedAtom, saveStateAtom, saveToServer } from '../hosted/hosted'
 
 export function TopBar() {
 	const editor = useEditor()
@@ -19,6 +20,9 @@ export function TopBar() {
 	const sync = useValue('sync', () => syncStatusAtom.get(), [])
 	const follow = useValue('follow', () => followViewAtom.get(), [])
 	const stylesShown = useValue('stylesShown', () => stylesShownAtom.get(), [])
+	const hosted = useValue('hosted', () => hostedAtom.get().hosted, [])
+	const file = useValue('currentFile', () => currentFileAtom.get(), [])
+	const saveState = useValue('saveState', () => saveStateAtom.get(), [])
 
 	const status = isRemote
 		? !conn.server
@@ -79,12 +83,25 @@ export function TopBar() {
 			<button onClick={() => setStylesShown(!stylesShown)} title="Show or hide the colour, line width and fill panel">
 				{stylesShown ? 'Hide styles' : 'Show styles'}
 			</button>
-			<button onClick={() => saveDocument(editor)} title={`Save${docName ? ` to ${docName}.mstudio` : ''} (Ctrl+S): pages, equations, text and images in one .mstudio file`}>
-				Save
-			</button>
-			<button onClick={() => saveDocument(editor, true)} title="Save as a new .mstudio file (Ctrl+Shift+S)">Save as</button>
-			<button onClick={() => openDocument(editor)} title="Open a .mstudio file (Ctrl+O), or drop one on the page">Open</button>
-			{docName && <span className="ms-docname" title="Current file">{docName}.mstudio</span>}
+			{hosted ? (
+				<>
+					<button onClick={() => homeOpenAtom.set(true)} title="Your files">Home</button>
+					<button onClick={() => saveToServer()} title="Save to your account on the server (Ctrl+S). Open files also save themselves.">Save</button>
+					<span className="ms-docname" title="Files save themselves as you work">
+						{file ? file.name : 'Not saved'}
+						{file && ` · ${{ saved: 'saved', saving: 'saving…', unsaved: 'editing', error: 'save failed' }[saveState]}`}
+					</span>
+				</>
+			) : (
+				<>
+					<button onClick={() => saveDocument(editor)} title={`Save${docName ? ` to ${docName}.mstudio` : ''} (Ctrl+S): pages, equations, text and images in one .mstudio file`}>
+						Save
+					</button>
+					<button onClick={() => saveDocument(editor, true)} title="Save as a new .mstudio file (Ctrl+Shift+S)">Save as</button>
+					<button onClick={() => openDocument(editor)} title="Open a .mstudio file (Ctrl+O), or drop one on the page">Open</button>
+					{docName && <span className="ms-docname" title="Current file">{docName}.mstudio</span>}
+				</>
+			)}
 			<button onClick={() => exportHtml(editor, true)} title="Exports the selection, or the whole page if nothing is selected">
 				Export HTML
 			</button>

@@ -16,3 +16,7 @@ desktop/web/
 desktop/server/
 desktop/docs/
 release/
+
+# Hosted server data and secrets
+data/
+.env

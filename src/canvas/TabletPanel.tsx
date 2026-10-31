@@ -1,6 +1,7 @@
 import QRCode from 'qrcode'
 import { useEffect, useState } from 'react'
 import { useValue } from 'tldraw'
+import { createDeviceLink, hostedAtom } from '../hosted/hosted'
 import { pairInfoAtom, pairUrl, syncStatusAtom } from '../sync/pairing'
 
 // PC: a QR code the tablet scans to open this canvas over Wi-Fi and draw on it with the pen.
@@ -13,8 +14,40 @@ export function TabletButton() {
 				{tablets > 0 && <span className="dot" />}
 				{tablets ? `Tablet connected${tablets > 1 ? ` (${tablets})` : ''}` : 'Connect tablet'}
 			</button>
-			{open && <TabletPanel onClose={() => setOpen(false)} />}
+			{open && (hostedAtom.get().hosted ? <HostedLinkPanel onClose={() => setOpen(false)} /> : <TabletPanel onClose={() => setOpen(false)} />)}
 		</>
+	)
+}
+
+// Hosted server: a one-time code that signs the tablet into this account (valid 5 minutes).
+function HostedLinkPanel({ onClose }: { onClose: () => void }) {
+	const tablets = useValue('tablets', () => syncStatusAtom.get().tablets, [])
+	const [qr, setQr] = useState<string>()
+	const [error, setError] = useState<string>()
+	const make = () => {
+		setQr(undefined)
+		setError(undefined)
+		createDeviceLink()
+			.then(({ url }) => QRCode.toDataURL(url, { margin: 1, width: 240 }))
+			.then(setQr, (err) => setError(String(err?.message ?? err)))
+	}
+	useEffect(make, [])
+
+	return (
+		<div className="ms-help ms-tablet">
+			<button className="ms-help-close" onClick={onClose}>×</button>
+			<h3>Open on your tablet</h3>
+			<p>
+				Scan this code with the Math Studio tablet app (or the tablet's camera). It signs the tablet into your account and opens
+				this canvas; what you draw there shows up here live.
+			</p>
+			<div className="ms-tablet-qr">{qr ? <img src={qr} width={240} height={240} alt="Sign-in QR code" /> : error ?? 'Making code…'}</div>
+			<p className={tablets ? 'ms-tablet-ok' : 'ms-tablet-wait'}>
+				{tablets ? `${tablets} other device${tablets > 1 ? 's' : ''} connected.` : 'The code works once and expires in 5 minutes.'}{' '}
+				<button onClick={make}>New code</button>
+			</p>
+			<p className="ms-tablet-note">Anyone who scans this code gets into your account, so don't share it.</p>
+		</div>
 	)
 }
 

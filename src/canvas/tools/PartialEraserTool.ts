@@ -1,4 +1,5 @@
 import {
+	atom,
 	b64Vecs,
 	createShapeId,
 	getPointsFromDrawSegments,
@@ -14,7 +15,21 @@ import {
 // math shapes (equations, sliders, widgets, math text) are never erased by scrubbing.
 const INK = new Set(['draw', 'highlight'])
 const KEEP = new Set(['equation', 'slider', 'widget', 'mathtext'])
-const RADIUS = 10 // screen pixels
+// Eraser radius in screen pixels; changed from the size bar shown while erasing.
+function loadSize() {
+	try {
+		return Number(localStorage.getItem('ms-eraser-size')) || 10
+	} catch {
+		return 10
+	}
+}
+export const eraserSizeAtom = atom('eraserSize', loadSize())
+export function setEraserSize(px: number) {
+	eraserSizeAtom.set(px)
+	try {
+		localStorage.setItem('ms-eraser-size', String(px))
+	} catch {}
+}
 
 export class PartialEraserTool extends StateNode {
 	// Same id as tldraw's eraser so it replaces it everywhere: toolbar, E key, a stylus's eraser end.
@@ -45,7 +60,7 @@ export class PartialEraserTool extends StateNode {
 
 	private eraseAt(from: Vec, to: Vec) {
 		const editor = this.editor
-		const r = RADIUS / editor.getZoomLevel()
+		const r = eraserSizeAtom.get() / editor.getZoomLevel()
 		// Sample the eraser path so a fast swipe does not skip over thin strokes.
 		const steps = Math.max(1, Math.ceil(Vec.Dist(from, to) / (r / 2)))
 		const centers = Array.from({ length: steps + 1 }, (_, i) => Vec.Lrp(from, to, i / steps))

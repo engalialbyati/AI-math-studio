@@ -13,15 +13,17 @@ import { embeddedSnapshot } from '../export/document'
 import { agentOptionsAtom, chatAtom, connectionAtom, getEquationShapes, limitsAtom, requestsAtom, scopeAtom, usageAtom, type ChatMessage, type Region } from '../state'
 import type { AgentOptions } from './protocol'
 import type { AiRequest, Box, ClientToServer, DocSnapshot, ServerToClient, SyncDiff } from './protocol'
-import { followViewAtom, isRemote, pairInfoAtom, pairToken, syncStatusAtom } from './pairing'
+import { followViewAtom, isRemote, pairInfoAtom, pairToken, remote, roleAtom, syncStatusAtom } from './pairing'
+import { currentFileAtom } from '../hosted/hosted'
 
 // In dev the PC page (Vite, 5173) talks to the server on 3001 and a tablet goes through Vite's /ws proxy.
 // The desktop app serves the page and /ws from one port, so both use the page's own host there.
+const WS = location.protocol === 'https:' ? 'wss' : 'ws'
 const SERVER_WS = isRemote
-	? `ws://${location.host}/ws?token=${encodeURIComponent(pairToken!)}`
+	? `${WS}://${location.host}/ws?token=${encodeURIComponent(pairToken!)}`
 	: import.meta.env.DEV
 		? `ws://${location.hostname || 'localhost'}:3001/ws`
-		: `ws://${location.host}/ws`
+		: `${WS}://${location.host}/ws`
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 let socket: WebSocket | null = null
@@ -236,7 +238,7 @@ function isSizeOnly([from, to]: [any, any]) {
 
 function outgoingDiff(changes: SyncDiff): SyncDiff | null {
 	let updated = changes.updated
-	if (isRemote) updated = Object.fromEntries(Object.entries(updated).filter(([, u]) => !isSizeOnly(u)))
+	if (remote()) updated = Object.fromEntries(Object.entries(updated).filter(([, u]) => !isSizeOnly(u)))
 	const empty = !Object.keys(changes.added).length && !Object.keys(updated).length && !Object.keys(changes.removed).length
 	return empty ? null : { added: changes.added, updated, removed: changes.removed }
 }
@@ -280,14 +282,14 @@ export function connectServer(editor: Editor) {
 	}
 	const sendView = () => {
 		const st = syncStatusAtom.get()
-		if (!followViewAtom.get() || (isRemote ? !st.synced : !st.tablets)) return
+		if (!followViewAtom.get() || (remote() ? !st.synced : !st.tablets)) return
 		if (Date.now() - viewAppliedAt < 300) return
 		const b = editor.getViewportPageBounds()
 		send({ type: 'view', pageId: editor.getCurrentPageId(), bounds: { x: b.x, y: b.y, w: b.w, h: b.h } })
 	}
 	let docTimer: ReturnType<typeof setTimeout> | undefined
 	const pushDoc = () => {
-		if (isRemote) return // the PC app is the one MCP tools read and drive
+		if (remote()) return // the PC app is the one MCP tools read and drive
 		clearTimeout(docTimer)
 		docTimer = setTimeout(() => send({ type: 'doc', doc: buildSnapshot(editor) }), 300)
 	}
@@ -298,7 +300,7 @@ export function connectServer(editor: Editor) {
 		socket = ws
 		ws.onopen = () => {
 			connectionAtom.update((c) => ({ ...c, server: true }))
-			if (!isRemote) send({ type: 'doc', doc: buildSnapshot(editor) })
+			if (!remote()) send({ type: 'doc', doc: buildSnapshot(editor) })
 			send({ type: 'agentOptions', options: agentOptionsAtom.get() })
 		}
 		ws.onclose = () => {
@@ -316,7 +318,7 @@ export function connectServer(editor: Editor) {
 			} else if (msg.type === 'agent') {
 				onAgentEvent(msg.event)
 			} else if (msg.type === 'sync') {
-				if (!isRemote || syncStatusAtom.get().synced) applyRemote(editor, () => editor.store.applyDiff(msg.diff as any))
+				if (!remote() || syncStatusAtom.get().synced) applyRemote(editor, () => editor.store.applyDiff(msg.diff as any))
 			} else if (msg.type === 'syncRequest') {
 				const snap = await embeddedSnapshot(editor)
 				send({ type: 'syncSnapshot', for: msg.for, snapshot: snap.document })
@@ -334,8 +336,17 @@ export function connectServer(editor: Editor) {
 				if (!glideFrame) glideFrame = requestAnimationFrame(glide)
 			} else if (msg.type === 'syncStatus') {
 				// A tablet just joined: once it has loaded the document, show it what the PC shows.
-				if (!isRemote && msg.tablets > syncStatusAtom.get().tablets) setTimeout(sendView, 1500)
+				if (!remote() && msg.tablets > syncStatusAtom.get().tablets)
+					setTimeout(() => {
+						sendView()
+						send({ type: 'fileOpened', file: currentFileAtom.get() })
+					}, 1500)
 				syncStatusAtom.update((s) => ({ ...s, hosts: msg.hosts, tablets: msg.tablets }))
+			} else if (msg.type === 'hello') {
+				roleAtom.set(msg.remote ? 'remote' : 'host')
+				if (!msg.remote) syncStatusAtom.update((s) => ({ ...s, synced: true }))
+			} else if (msg.type === 'fileOpened') {
+				currentFileAtom.set(msg.file)
 			} else if (msg.type === 'pairInfo') {
 				pairInfoAtom.set({ token: msg.token, addresses: msg.addresses })
 			} else if (msg.type === 'requestStatus') {
@@ -377,7 +388,7 @@ export function connectServer(editor: Editor) {
 	const unlistenSync = editor.store.listen(
 		({ changes }) => {
 			const st = syncStatusAtom.get()
-			if (isRemote ? !st.synced : !st.tablets) return
+			if (remote() ? !st.synced : !st.tablets) return
 			const diff = outgoingDiff(changes as SyncDiff)
 			if (diff) send({ type: 'sync', diff })
 		},

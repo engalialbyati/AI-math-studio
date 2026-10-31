@@ -23,8 +23,10 @@ import android.widget.Toast;
 import com.google.zxing.client.android.Intents;
 import com.journeyapps.barcodescanner.ScanOptions;
 
-// Math Studio on the tablet: scan the PC's "Connect tablet" QR code once, then the canvas opens
-// full screen and every pen stroke is mirrored to the PC live. The link is remembered.
+// Math Studio on the tablet. Two ways in, both remembered:
+// - Your Math Studio server: type its address (or scan a sign-in code from a signed-in PC);
+//   Google sign-in happens in the browser, which returns here through mathstudio://auth.
+// - A PC on the same Wi-Fi: scan its "Connect tablet" code; strokes mirror to the PC live.
 public class MainActivity extends Activity {
     private static final int SCAN_REQUEST = 1;
     private static final String PREFS = "pairing";
@@ -61,7 +63,7 @@ public class MainActivity extends Activity {
             public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
                 if (request.isForMainFrame()) {
                     loadFailed = true;
-                    showPairing("Can't reach Math Studio on the PC. Check that it is running and that both devices are on the same Wi-Fi.", true);
+                    showPairing("Can't reach Math Studio. Check the internet connection (or, for a PC, that it is running on the same Wi-Fi).", true);
                 }
             }
 
@@ -72,8 +74,13 @@ public class MainActivity extends Activity {
 
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                // Links leaving the PC app open in the normal browser.
                 Uri u = request.getUrl();
+                // Google does not allow sign-in inside an app's web view: use the browser.
+                if ("/auth/google".equals(u.getPath())) {
+                    startActivity(new Intent(Intent.ACTION_VIEW, u.buildUpon().appendQueryParameter("app", "1").build()));
+                    return true;
+                }
+                // Links leaving Math Studio open in the normal browser.
                 Uri saved = Uri.parse(savedUrl() == null ? "" : savedUrl());
                 if (u.getHost() != null && u.getHost().equals(saved.getHost())) return false;
                 startActivity(new Intent(Intent.ACTION_VIEW, u));
@@ -91,9 +98,32 @@ public class MainActivity extends Activity {
             return false;
         });
 
-        String url = savedUrl();
-        if (url != null) open(url);
-        else showPairing(null, false);
+        if (!handleAuth(getIntent())) {
+            String url = savedUrl();
+            if (url != null) open(url);
+            else showPairing(null, false);
+        }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        handleAuth(intent);
+    }
+
+    // mathstudio://auth?url=<one-time sign-in link> from the browser, for the saved server only.
+    private boolean handleAuth(Intent intent) {
+        Uri data = intent == null ? null : intent.getData();
+        if (data == null || !"mathstudio".equals(data.getScheme())) return false;
+        String link = data.getQueryParameter("url");
+        String saved = savedUrl();
+        if (link == null || saved == null) return false;
+        Uri l = Uri.parse(link);
+        Uri s = Uri.parse(saved);
+        if (!"/auth/link".equals(l.getPath()) || l.getHost() == null || !l.getHost().equals(s.getHost())
+                || !String.valueOf(l.getScheme()).equals(s.getScheme())) return false;
+        open(link);
+        return true;
     }
 
     private String savedUrl() {
@@ -103,7 +133,7 @@ public class MainActivity extends Activity {
     private void startScan() {
         ScanOptions options = new ScanOptions()
                 .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
-                .setPrompt("Scan the QR code from Connect tablet on the PC")
+                .setPrompt("Scan the code from Connect tablet in Math Studio")
                 .setBeepEnabled(false)
                 .setOrientationLocked(false);
         startActivityForResult(options.createScanIntent(this), SCAN_REQUEST);
@@ -117,18 +147,22 @@ public class MainActivity extends Activity {
         if (text != null) accept(text.trim());
     }
 
-    // Only Math Studio pairing links (http://<pc>:<port>/?pair=<token>) are accepted.
+    // Accepts a PC pairing link (http://<pc>:<port>/?pair=<token>), a sign-in code from a server
+    // (https://<server>/auth/link?token=...), or a server address typed by hand.
     private void accept(String text) {
+        if (!text.contains("://")) text = "https://" + text;
         Uri u = Uri.parse(text);
-        boolean ok = ("http".equals(u.getScheme()) || "https".equals(u.getScheme()))
-                && u.getHost() != null && u.getQueryParameter("pair") != null;
-        if (!ok) {
-            Toast.makeText(this, "That is not a Math Studio pairing code.", Toast.LENGTH_LONG).show();
+        boolean web = ("http".equals(u.getScheme()) || "https".equals(u.getScheme())) && u.getHost() != null;
+        if (!web) {
+            Toast.makeText(this, "That is not a Math Studio code or address.", Toast.LENGTH_LONG).show();
             return;
         }
+        boolean pairing = u.getQueryParameter("pair") != null;
+        // Remember the server itself, not a one-time sign-in link.
+        String home = pairing ? text : u.buildUpon().path("/").clearQuery().fragment(null).build().toString();
         SharedPreferences.Editor e = getSharedPreferences(PREFS, MODE_PRIVATE).edit();
-        e.putString(KEY_URL, text).apply();
-        open(text);
+        e.putString(KEY_URL, home).apply();
+        open(pairing || !"/auth/link".equals(u.getPath()) ? home : text);
     }
 
     private void open(String url) {

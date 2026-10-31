@@ -1,0 +1,13 @@
+node_modules
+dist
+release
+android
+data
+.env
+desktop/web
+desktop/server
+desktop/docs
+.git
+.claude
+public/models
+public/ort

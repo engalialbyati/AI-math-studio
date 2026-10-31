@@ -33,7 +33,7 @@
             android:layout_marginTop="16dp"
             android:gravity="center"
             android:maxWidth="520dp"
-            android:text="On the PC, click Connect tablet in Math Studio, then scan the QR code. Both devices must be on the same Wi-Fi."
+            android:text="Type your Math Studio server address below and sign in with Google, or scan the code from Connect tablet in Math Studio."
             android:textColor="#374151"
             android:textSize="17sp" />
 
@@ -57,7 +57,7 @@
             android:layout_width="420dp"
             android:layout_height="wrap_content"
             android:layout_marginTop="28dp"
-            android:hint="…or paste the link shown under the QR code"
+            android:hint="Server address, e.g. math.example.com"
             android:imeOptions="actionGo"
             android:inputType="textUri"
             android:singleLine="true" />

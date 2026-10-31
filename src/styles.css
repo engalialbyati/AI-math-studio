@@ -158,3 +158,42 @@ body { margin: 0; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
 .ms-layout { display: inline-flex; gap: 2px; }
 .ms-layout select { border: 1px solid var(--ms-border); background: #fff; border-radius: 6px; padding: 3px 4px; font-size: 12px; }
 .ms-docname { font-size: 11px; color: #6b7280; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Hosted: sign-in and home (file list) */
+.ms-login, .ms-home { position: fixed; inset: 0; display: flex; align-items: flex-start; justify-content: center; padding: 8vh 16px; box-sizing: border-box; background: #f8fafcf2; z-index: 500; pointer-events: all; overflow: auto; font-size: 14px; }
+.ms-home-card { width: 100%; max-width: 640px; background: #fff; border-radius: 14px; box-shadow: 0 6px 30px #0002; padding: 18px 20px; }
+.ms-login .ms-home-card { max-width: 380px; text-align: center; }
+.ms-login h1 { font-size: 26px; margin: 8px 0; }
+.ms-google { display: inline-block; margin: 12px 0 4px; padding: 10px 18px; border-radius: 8px; background: var(--ms-accent); color: #fff; text-decoration: none; font-weight: 600; }
+.ms-dev-login { display: flex; gap: 6px; margin-top: 14px; justify-content: center; }
+.ms-home-head { display: flex; align-items: center; gap: 10px; }
+.ms-home-head .ms-logo { font-size: 18px; margin-right: auto; }
+.ms-home-user { display: inline-flex; align-items: center; gap: 6px; color: var(--ms-muted); font-size: 13px; }
+.ms-home-user img { width: 22px; height: 22px; border-radius: 50%; }
+.ms-home button { border: 1px solid var(--ms-border); background: #fff; border-radius: 6px; padding: 5px 10px; cursor: pointer; font-size: 13px; }
+.ms-home button:hover { background: #f9fafb; }
+.ms-home button.ms-primary { background: var(--ms-accent); border-color: var(--ms-accent); color: #fff; font-weight: 600; }
+.ms-home-actions { display: flex; gap: 8px; margin: 16px 0 10px; flex-wrap: wrap; }
+.ms-home-error { color: var(--ms-error); }
+.ms-home-empty { color: var(--ms-muted); }
+.ms-home-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--ms-border); }
+.ms-home-list li { display: flex; align-items: center; gap: 6px; padding: 6px 0; border-bottom: 1px solid var(--ms-border); }
+.ms-home-list li.current .ms-home-name { color: var(--ms-accent); }
+.ms-home .ms-home-open { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; border: 0; text-align: left; }
+.ms-home-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.ms-home-date { font-size: 12px; color: var(--ms-muted); }
+
+.ms-claude { margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--ms-border); border-radius: 10px; background: #fafafa; }
+.ms-claude-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ms-claude-row button { margin-left: auto; }
+.ms-claude-form p { font-size: 13px; color: #374151; }
+.ms-claude-form input { width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid var(--ms-border); border-radius: 6px; margin-bottom: 8px; font: inherit; }
+
+/* Eraser size */
+.ms-eraser-ring { position: absolute; border: 1.5px solid #6b7280; border-radius: 50%; background: #ffffff55; pointer-events: none; z-index: 5; }
+.ms-eraser-size { position: absolute; left: 50%; bottom: 72px; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; padding: 5px 10px;
+	background: #fff; border-radius: 10px; box-shadow: 0 2px 10px #0002; pointer-events: all; font-size: 12px; color: #374151; z-index: 6; }
+.ms-eraser-size button { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--ms-border); background: #fff; border-radius: 6px; cursor: pointer; }
+.ms-eraser-size button.on { border-color: var(--ms-accent); background: var(--ms-accent-soft); }
+.ms-eraser-size button span { display: block; border-radius: 50%; background: #374151; }
+.ms-eraser-size input { width: 110px; accent-color: var(--ms-accent); }
