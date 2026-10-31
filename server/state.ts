@@ -16,8 +16,9 @@ interface Client {
 	pending: string[] // changes that arrived while its snapshot was on the way
 }
 
-// Live mirror of the browser canvas plus the AI request queue.
-class AppState {
+// Live mirror of the browser canvas plus the AI request queue. One per signed-in user on a hosted
+// server (their devices sync with each other); the single-user app and the admin share `state`.
+export class AppState {
 	doc: DocSnapshot | null = null
 	requests = new Map<string, TrackedRequest>()
 	private clients = new Map<WebSocket, Client>()
@@ -27,14 +28,37 @@ class AppState {
 	private waiters = new Set<(r: TrackedRequest | null) => void>()
 	private lastMcp = 0
 	private cmdCounter = 0
-	agent!: Agent
+	agent?: Agent
+	lanPairing = true // single-user app: hand the PC the tablet pairing token
 
-	initAgent(port: number) {
-		this.agent = new Agent(port, (event) => {
-			this.broadcast({ type: 'agent', event })
-			if (event.kind === 'start' || event.kind === 'done') this.sendStatus()
-		})
-		console.log(this.agent.bin ? `[agent] Claude Code: ${this.agent.bin}` : '[agent] Claude Code CLI not found; in-app chat disabled')
+	initAgent(port: number, opts?: ConstructorParameters<typeof Agent>[2]) {
+		this.agent?.stop()
+		this.agent = new Agent(
+			port,
+			(event) => {
+				this.broadcast({ type: 'agent', event })
+				if (event.kind === 'start' || event.kind === 'done') this.sendStatus()
+			},
+			opts
+		)
+		this.sendStatus()
+		if (opts) return
+		console.log(this.agent!.bin ? `[agent] Claude Code: ${this.agent.bin}` : '[agent] Claude Code CLI not found; in-app chat disabled')
+	}
+
+	// Hosted: the user disconnected their Claude account.
+	dropAgent() {
+		this.agent?.stop()
+		this.agent = undefined
+		this.sendStatus()
+	}
+
+	get empty() {
+		return this.clients.size === 0
+	}
+
+	hasHost() {
+		return this.hosts().length > 0
 	}
 
 	get browserConnected() {
@@ -44,8 +68,9 @@ class AppState {
 	addClient(ws: WebSocket, role: Client['role']) {
 		const client: Client = { id: `b${++this.clientCounter}`, role, synced: role === 'host', pending: [] }
 		this.clients.set(ws, client)
+		ws.send(JSON.stringify({ type: 'hello', remote: role === 'remote' } satisfies ServerToClient))
 		this.sendStatus(ws)
-		if (role === 'host') ws.send(JSON.stringify({ type: 'pairInfo', token: pairToken, addresses: lanAddresses() } satisfies ServerToClient))
+		if (role === 'host' && this.lanPairing) ws.send(JSON.stringify({ type: 'pairInfo', token: pairToken, addresses: lanAddresses() } satisfies ServerToClient))
 		this.syncStatus()
 		// A tablet starts from the PC's document; a PC (re)connecting refreshes every tablet.
 		if (role === 'remote') this.requestSnapshot(client)
@@ -58,8 +83,8 @@ class AppState {
 			try {
 				const msg = JSON.parse(String(raw)) as ClientToServer
 				if (msg.type === 'doc') this.docClient = ws
-				if (msg.type === 'sync' || msg.type === 'syncSnapshot' || msg.type === 'view') this.onSync(ws, msg)
-				else this.onMessage(msg)
+				if (msg.type === 'sync' || msg.type === 'syncSnapshot' || msg.type === 'view' || msg.type === 'fileOpened') this.onSync(ws, msg)
+				else this.onMessage(msg, ws)
 			} catch (err) {
 				console.error('[ws] bad message', err)
 			}
@@ -67,7 +92,15 @@ class AppState {
 		ws.on('close', () => {
 			this.clients.delete(ws)
 			if (this.docClient === ws) this.docClient = null
-			if (role === 'remote') console.log('[ws] tablet disconnected')
+			if (client.role === 'remote') console.log('[ws] tablet disconnected')
+			// The device holding the document left: the next one takes over.
+			if (client.role === 'host' && !this.hasHost()) {
+				const next = [...this.clients].find(([, c]) => c.synced)
+				if (next) {
+					next[1].role = 'host'
+					next[0].send(JSON.stringify({ type: 'hello', remote: false } satisfies ServerToClient))
+				}
+			}
 			this.syncStatus()
 		})
 	}
@@ -84,7 +117,7 @@ class AppState {
 	}
 
 	// Relay canvas changes between the PC app and paired tablets.
-	private onSync(from: WebSocket, msg: Extract<ClientToServer, { type: 'sync' | 'syncSnapshot' | 'view' }>) {
+	private onSync(from: WebSocket, msg: Extract<ClientToServer, { type: 'sync' | 'syncSnapshot' | 'view' | 'fileOpened' }>) {
 		if (msg.type === 'syncSnapshot') {
 			const entry = [...this.clients].find(([, c]) => c.id === msg.for)
 			if (!entry) return
@@ -96,7 +129,7 @@ class AppState {
 			return
 		}
 		if (!this.clients.get(from)?.synced) return
-		if (msg.type === 'view') {
+		if (msg.type === 'view' || msg.type === 'fileOpened') {
 			// Only the latest view matters: not buffered for tablets still loading.
 			const data = JSON.stringify(msg satisfies ServerToClient)
 			for (const [ws, c] of this.clients) if (ws !== from && c.synced) ws.send(data)
@@ -119,7 +152,16 @@ class AppState {
 		})
 	}
 
-	private onMessage(msg: ClientToServer) {
+	private onMessage(msg: ClientToServer, ws: WebSocket) {
+		const ai = ['aiRequest', 'chat', 'chatStop', 'checkLimits', 'agentOptions', 'chatReset'].includes(msg.type)
+		if (ai && !this.agent) {
+			// Hosted server, not an admin: no AI.
+			const error = 'AI is only available to the admin of this server.'
+			if (msg.type === 'aiRequest') ws.send(JSON.stringify({ type: 'requestStatus', id: msg.request.id, status: 'error', message: error } satisfies ServerToClient))
+			if (msg.type === 'chat') ws.send(JSON.stringify({ type: 'agent', event: { kind: 'done', runId: 'none', ok: false, error } } satisfies ServerToClient))
+			return
+		}
+		const agent = this.agent!
 		if (msg.type === 'doc') {
 			this.doc = msg.doc
 		} else if (msg.type === 'aiRequest') {
@@ -138,15 +180,15 @@ class AppState {
 			const sel = msg.selection?.length
 				? `\n\n[Selected shapes: ${msg.selection.join(', ')}. Work ONLY on these; look at them with get_canvas_image {"shapeIds": [...these ids]}. Do not touch anything else.]`
 				: '\n\n[Nothing is selected. Do not transform the canvas on your own; if the request needs a target, ask the user to select it.]'
-			this.agent.ask(msg.text, msg.text + sel)
+			agent.ask(msg.text, msg.text + sel)
 		} else if (msg.type === 'chatStop') {
-			this.agent.stop()
+			agent.stop()
 		} else if (msg.type === 'checkLimits') {
-			this.agent.checkLimits()
+			agent.checkLimits()
 		} else if (msg.type === 'agentOptions') {
-			this.agent.options = msg.options
+			agent.options = msg.options
 		} else if (msg.type === 'chatReset') {
-			this.agent.reset()
+			agent.reset()
 		} else if (msg.type === 'cancelRequest') {
 			this.requests.delete(msg.id)
 		} else if (msg.type === 'cmdResult') {
@@ -210,7 +252,7 @@ class AppState {
 		if (!r || r.status !== 'pending' || !this.agent?.available) return
 		this.claim(r)
 		const where = r.region ? ' on the selected region' : ''
-		this.agent.ask(
+		this.agent!.ask(
 			`AI helper${where}: ${r.prompt}`,
 			`An AI-helper request from the canvas is waiting (requestId ${r.id}). Call get_ai_request with that id to see the prompt, the image of the selected region and the equations. Work ONLY on the shapes inside the request region (shapesInRegion); do not change anything else. Then call resolve_ai_request with a short message.`,
 			(ok, error) => {

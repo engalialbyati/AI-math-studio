@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'" />
+		<title>Math Studio</title>
+		<style>
+			body { margin: 0; font: 15px system-ui, 'Segoe UI', sans-serif; background: #f8fafc; color: #111827; display: flex; justify-content: center; padding: 10vh 16px; }
+			.card { max-width: 460px; width: 100%; background: #fff; border-radius: 14px; box-shadow: 0 6px 30px #0002; padding: 24px; }
+			h1 { color: #7c3aed; margin: 0 0 6px; font-size: 26px; }
+			h2 { font-size: 16px; margin: 22px 0 6px; }
+			p { color: #4b5563; margin: 4px 0 10px; }
+			input { width: 100%; box-sizing: border-box; padding: 9px 10px; font: inherit; border: 1px solid #d1d5db; border-radius: 8px; }
+			button { margin-top: 10px; padding: 9px 16px; font: inherit; border-radius: 8px; border: 1px solid #d1d5db; background: #fff; cursor: pointer; }
+			button.primary { background: #7c3aed; border-color: #7c3aed; color: #fff; font-weight: 600; }
+			.err { color: #dc2626; }
+		</style>
+	</head>
+	<body>
+		<div class="card">
+			<h1>∫ Math Studio</h1>
+			<h2>Your Math Studio server</h2>
+			<p>Sign in with Google and open your files from any device.</p>
+			<form id="server">
+				<input id="url" placeholder="math.example.com" autofocus />
+				<button class="primary">Connect</button>
+				<p id="err" class="err"></p>
+			</form>
+			<h2>Only on this PC</h2>
+			<p>No sign-in. Files are saved on this computer; AI uses the Claude Code installed here.</p>
+			<button id="local">Use on this PC</button>
+		</div>
+		<script>
+			const app = window.mathStudioApp
+			app.settings().then((s) => {
+				if (s.serverUrl) document.getElementById('url').value = s.serverUrl
+			})
+			document.getElementById('server').onsubmit = async (e) => {
+				e.preventDefault()
+				const r = await app.setup({ mode: 'server', serverUrl: document.getElementById('url').value.trim() })
+				document.getElementById('err').textContent = r.error ?? ''
+			}
+			document.getElementById('local').onclick = () => app.setup({ mode: 'local' })
+		</script>
+	</body>
+</html>

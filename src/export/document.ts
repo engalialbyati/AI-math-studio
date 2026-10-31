@@ -46,7 +46,7 @@ export async function embeddedSnapshot(editor: Editor) {
 	return snapshot
 }
 
-async function serialize(editor: Editor): Promise<string> {
+export async function serialize(editor: Editor): Promise<string> {
 	const snapshot = await embeddedSnapshot(editor)
 	const file: MStudioFile = { format: FORMAT, version: VERSION, savedAt: new Date().toISOString(), snapshot }
 	return JSON.stringify(file)
@@ -83,7 +83,7 @@ export async function saveDocument(editor: Editor, saveAs = false) {
 	download((docNameAtom.get() ?? 'untitled') + EXT, content)
 }
 
-function load(editor: Editor, text: string, name: string) {
+export function load(editor: Editor, text: string, name: string) {
 	const data = JSON.parse(text)
 	// Older saves were a bare tldraw snapshot (canvas.mathstudio.json).
 	const snapshot = data?.format === FORMAT ? data.snapshot : data

@@ -81,7 +81,16 @@ export class Agent {
 	limits: PlanLimits | null = null
 	private checking = false
 
-	constructor(private port: number, private emit: (e: AgentEvent) => void) {}
+	// opts (hosted server): the user's own Claude login and an MCP URL for their canvas only.
+	constructor(
+		private port: number,
+		private emit: (e: AgentEvent) => void,
+		private opts: { mcpUrl?: string; env?: Record<string, string>; cwd?: string } = {}
+	) {}
+
+	private spawnEnv() {
+		return { ...cleanEnv(), ...this.opts.env }
+	}
 
 	get available() {
 		return !!this.bin
@@ -111,7 +120,7 @@ export class Agent {
 			'--model', 'haiku', '--effort', 'low', '--tools', '', '--system-prompt', 'Reply ok.',
 			'--disable-slash-commands', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--no-session-persistence',
 		]
-		const proc = spawn(this.bin, args, { cwd: ROOT, env: cleanEnv(), stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true })
+		const proc = spawn(this.bin, args, { cwd: this.opts.cwd ?? ROOT, env: this.spawnEnv(), stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true })
 		proc.stdin.end('ok')
 		let buf = ''
 		proc.stdout.on('data', (d) => {
@@ -154,7 +163,8 @@ export class Agent {
 			job.onDone?.(false, 'Claude Code not found')
 			return this.pump()
 		}
-		const mcp = JSON.stringify({ mcpServers: { 'math-studio': { type: 'http', url: `http://127.0.0.1:${this.port}/mcp` } } })
+		const url = this.opts.mcpUrl ?? `http://127.0.0.1:${this.port}/mcp`
+		const mcp = JSON.stringify({ mcpServers: { 'math-studio': { type: 'http', url } } })
 		const args = [
 			'-p', '--output-format', 'stream-json', '--verbose',
 			'--mcp-config', mcp, '--strict-mcp-config',
@@ -165,7 +175,7 @@ export class Agent {
 		if (this.options.model) args.push('--model', this.options.model)
 		if (this.options.effort) args.push('--effort', this.options.effort)
 		if (this.sessionId) args.push('--resume', this.sessionId)
-		const proc = spawn(this.bin, args, { cwd: ROOT, env: cleanEnv(), stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+		const proc = spawn(this.bin, args, { cwd: this.opts.cwd ?? ROOT, env: this.spawnEnv(), stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
 		this.current = { job, proc }
 		this.emit({ kind: 'start', runId: job.runId, label: job.label })
 		proc.stdin.end(job.prompt)

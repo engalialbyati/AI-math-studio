@@ -1,0 +1,32 @@
+# Math Studio on your server. Copy .env.example to .env and fill it in, then:
+#   docker compose up -d --build                    (behind your own reverse proxy)
+#   docker compose --profile caddy up -d --build    (with built-in HTTPS via Caddy)
+services:
+  math-studio:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./data:/data
+    # Only this machine (your reverse proxy) can reach it; the proxy adds HTTPS.
+    ports:
+      - "127.0.0.1:3001:3001"
+
+  # Optional: automatic HTTPS for DOMAIN (ports 80 and 443 must be free).
+  caddy:
+    image: caddy:2
+    profiles: [caddy]
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:-}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on:
+      - math-studio
+
+volumes:
+  caddy-data:

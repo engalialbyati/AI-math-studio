@@ -61,6 +61,7 @@ export type ClientToServer =
 	| { type: 'sync'; diff: SyncDiff }
 	| { type: 'syncSnapshot'; for: string; snapshot: unknown }
 	| { type: 'view'; pageId: string; bounds: Box } // what this screen shows; others follow it
+	| { type: 'fileOpened'; file: { id: string; name: string } | null } // hosted: the server file now on the canvas
 
 // Model and effort for the built-in agent; empty means the user's Claude Code defaults.
 export interface AgentOptions {
@@ -104,4 +105,6 @@ export type ServerToClient =
 	| { type: 'syncSnapshot'; snapshot: unknown } // tablet: load this document
 	| { type: 'syncStatus'; hosts: number; tablets: number }
 	| { type: 'view'; pageId: string; bounds: Box }
+	| { type: 'fileOpened'; file: { id: string; name: string } | null }
+	| { type: 'hello'; remote: boolean } // remote: load the document from another of this user's devices
 	| { type: 'pairInfo'; token: string; addresses: string[] } // host only

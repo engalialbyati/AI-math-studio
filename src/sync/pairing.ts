@@ -20,6 +20,11 @@ export const pairToken = readToken()
 // This browser is a paired tablet mirroring the PC app's canvas.
 export const isRemote = !!pairToken
 
+// Who holds the document: 'host' (the PC, or a user's first device on a hosted server) or
+// 'remote' (loads the document from the host and mirrors it). The server confirms it on connect.
+export const roleAtom = atom<'host' | 'remote'>('role', isRemote ? 'remote' : 'host')
+export const remote = () => roleAtom.get() === 'remote'
+
 // Host only: what the QR code needs.
 export const pairInfoAtom = atom<{ token: string; addresses: string[] } | null>('pairInfo', null)
 

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { state, type TrackedRequest } from './state'
+import { state, type AppState, type TrackedRequest } from './state'
 
 const WIDGET_API = readFileSync(new URL('../docs/widget-api.md', import.meta.url), 'utf8')
 
@@ -43,8 +43,8 @@ const ACTION_HINTS: Record<string, string> = {
 	custom: 'Do what the prompt says using the tools.',
 }
 
-function requestPayload(r: TrackedRequest) {
-	const doc = state.doc
+function requestPayload(r: TrackedRequest, room: AppState) {
+	const doc = room.doc
 	const eqs = doc?.equations ?? []
 	const payload = {
 		requestId: r.id,
@@ -70,11 +70,12 @@ function requestPayload(r: TrackedRequest) {
 	return { content }
 }
 
-export function createMcpServer() {
+// `room`: whose canvas the tools act on (hosted: each user's own; otherwise the one app).
+export function createMcpServer(room: AppState = state) {
 	const server = new McpServer({ name: 'math-studio', version: '0.1.0' }, { instructions: INSTRUCTIONS })
 	const tool = (name: string, config: any, handler: (args: any) => Promise<any>) =>
 		server.registerTool(name, config, async (args: any) => {
-			state.touchMcp()
+			room.touchMcp()
 			try {
 				return await handler(args)
 			} catch (err) {
@@ -91,7 +92,7 @@ export function createMcpServer() {
 			inputSchema: {},
 		},
 		async () => {
-			const doc = await state.command('getSnapshot').catch(() => state.doc)
+			const doc = await room.command('getSnapshot').catch(() => room.doc)
 			if (!doc) throw new Error('No canvas yet. Ask the user to open http://localhost:5173')
 			return text(doc)
 		}
@@ -105,7 +106,7 @@ export function createMcpServer() {
 			inputSchema: { region: box.optional(), shapeIds: z.array(z.string()).optional() },
 		},
 		async (args) => {
-			const r = await state.command<any>('getImage', args)
+			const r = await room.command<any>('getImage', args)
 			if (!r) return text('The canvas (or region) is empty.')
 			return { content: [{ type: 'image', data: r.image, mimeType: 'image/png' }, { type: 'text', text: `${r.width}×${r.height}px, shapes: ${r.shapeIds.join(', ')}` }] }
 		}
@@ -120,9 +121,9 @@ export function createMcpServer() {
 			inputSchema: { timeoutSeconds: z.number().min(1).max(300).optional() },
 		},
 		async ({ timeoutSeconds }) => {
-			const r = await state.waitForRequest((timeoutSeconds ?? 55) * 1000)
+			const r = await room.waitForRequest((timeoutSeconds ?? 55) * 1000)
 			if (!r) return text('No request yet. Call wait_for_ai_request again to keep waiting.')
-			return requestPayload(r)
+			return requestPayload(r, room)
 		}
 	)
 
@@ -134,7 +135,7 @@ export function createMcpServer() {
 			inputSchema: {},
 		},
 		async () =>
-			text(state.openRequests().map((r) => ({ id: r.id, status: r.status, action: r.action, prompt: r.prompt, region: r.region })))
+			text(room.openRequests().map((r) => ({ id: r.id, status: r.status, action: r.action, prompt: r.prompt, region: r.region })))
 	)
 
 	tool(
@@ -144,7 +145,7 @@ export function createMcpServer() {
 			description: 'Full request (image + context) by id, and mark it as being worked on.',
 			inputSchema: { requestId: z.string() },
 		},
-		async ({ requestId }) => requestPayload(state.claimById(requestId))
+		async ({ requestId }) => requestPayload(room.claimById(requestId), room)
 	)
 
 	tool(
@@ -155,7 +156,7 @@ export function createMcpServer() {
 			inputSchema: { requestId: z.string(), message: z.string().max(200), ok: z.boolean().optional() },
 		},
 		async ({ requestId, message, ok }) => {
-			state.resolveRequest(requestId, ok ?? true, message)
+			room.resolveRequest(requestId, ok ?? true, message)
 			return text('ok')
 		}
 	)
@@ -173,7 +174,7 @@ export function createMcpServer() {
 				near: z.string().optional().describe('Shape id to place the equation to the right of'),
 			},
 		},
-		async (args) => text(await state.command('addEquation', args))
+		async (args) => text(await room.command('addEquation', args))
 	)
 
 	tool(
@@ -183,7 +184,7 @@ export function createMcpServer() {
 			description: 'Replace the text of an existing equation (to fix or improve it). Returns the new result.',
 			inputSchema: { id: z.string(), text: z.string() },
 		},
-		async (args) => text(await state.command('updateEquation', args))
+		async (args) => text(await room.command('updateEquation', args))
 	)
 
 	tool(
@@ -203,7 +204,7 @@ export function createMcpServer() {
 				near: z.string().optional(),
 			},
 		},
-		async (args) => text(await state.command('addSlider', args))
+		async (args) => text(await room.command('addSlider', args))
 	)
 
 	tool(
@@ -219,7 +220,7 @@ export function createMcpServer() {
 				color: z.enum(['violet', 'yellow', 'green', 'red', 'blue', 'orange']).optional(),
 			},
 		},
-		async (args) => text(await state.command('addNote', args))
+		async (args) => text(await room.command('addNote', args))
 	)
 
 	tool(
@@ -250,7 +251,7 @@ export function createMcpServer() {
 				requestId: z.string().optional(),
 			},
 		},
-		async (args) => text(await state.command('createWidget', args))
+		async (args) => text(await room.command('createWidget', args))
 	)
 
 	tool(
@@ -260,13 +261,13 @@ export function createMcpServer() {
 			description: 'Change a widget\'s code, title or size. Returns any runtime error.',
 			inputSchema: { id: z.string(), code: z.string().optional(), title: z.string().optional(), w: z.number().optional(), h: z.number().optional() },
 		},
-		async (args) => text(await state.command('updateWidget', args))
+		async (args) => text(await room.command('updateWidget', args))
 	)
 
 	tool(
 		'get_widget_code',
 		{ title: 'Read widget code', description: 'Current code, size and error of a widget.', inputSchema: { id: z.string() } },
-		async (args) => text(await state.command('getWidgetCode', args))
+		async (args) => text(await room.command('getWidgetCode', args))
 	)
 
 	tool(
@@ -276,13 +277,13 @@ export function createMcpServer() {
 			description: 'Delete shapes by id (e.g. sketch strokes after converting them). The user can undo.',
 			inputSchema: { ids: z.array(z.string()) },
 		},
-		async (args) => text(await state.command('deleteShapes', args))
+		async (args) => text(await room.command('deleteShapes', args))
 	)
 
 	tool(
 		'move_shape',
 		{ title: 'Move a shape', description: 'Move a shape to page coordinates x/y.', inputSchema: { id: z.string(), x: z.number(), y: z.number() } },
-		async (args) => text(await state.command('moveShape', args))
+		async (args) => text(await room.command('moveShape', args))
 	)
 
 	tool(
@@ -293,7 +294,7 @@ export function createMcpServer() {
 				'Evaluate an expression with the same engine and scope as the canvas, without adding it. Supports integrate(expr, x[, a, b]) and diff(expr, x). Returns value or resolved symbolic form.',
 			inputSchema: { text: z.string() },
 		},
-		async (args) => text(await state.command('evaluate', args))
+		async (args) => text(await room.command('evaluate', args))
 	)
 
 	server.registerPrompt(

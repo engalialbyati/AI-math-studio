@@ -62,6 +62,14 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "shortcutName": "Math Studio"
-    }
+    },
+    "protocols": [
+      {
+        "name": "Math Studio sign-in",
+        "schemes": [
+          "mathstudio"
+        ]
+      }
+    ]
   }
 }

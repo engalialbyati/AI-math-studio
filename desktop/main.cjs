@@ -1,41 +1,42 @@
-// Math Studio desktop app: runs the local server (MCP + WebSocket + the built web app) inside
-// Electron and shows the canvas in a window. Paired tablets reach the same server over Wi-Fi.
-const { app, BrowserWindow, dialog, shell } = require('electron')
+// Math Studio desktop app. Two ways to run:
+// - Server: opens your hosted Math Studio (sign in with Google; files live on the server).
+// - This PC only: runs the local server (MCP + WebSocket + web app) inside Electron, no sign-in;
+//   paired tablets on the same Wi-Fi reach it directly.
+const { app, BrowserWindow, Menu, dialog, ipcMain, shell } = require('electron')
+const fs = require('node:fs')
 const path = require('node:path')
 const { pathToFileURL } = require('node:url')
 
 const PORT = 3001
-const URL = `http://localhost:${PORT}/`
+const LOCAL_URL = `http://localhost:${PORT}/`
+const PROTOCOL = 'mathstudio' // mathstudio://auth?url=... hands a browser sign-in back to the app
+
+const settingsFile = () => path.join(app.getPath('userData'), 'settings.json')
+function readSettings() {
+	try {
+		return JSON.parse(fs.readFileSync(settingsFile(), 'utf8'))
+	} catch {
+		return {}
+	}
+}
+function writeSettings(s) {
+	fs.mkdirSync(path.dirname(settingsFile()), { recursive: true })
+	fs.writeFileSync(settingsFile(), JSON.stringify(s, null, 2))
+}
 
 if (!app.requestSingleInstanceLock()) {
 	app.quit()
 } else {
 	let win = null
+	let localStarted = false
+	let pendingAuth = process.argv.find((a) => a.startsWith(`${PROTOCOL}://`)) ?? null
+	app.setAsDefaultProtocolClient(PROTOCOL)
 
-	function createWindow() {
-		win = new BrowserWindow({
-			width: 1400,
-			height: 900,
-			title: 'Math Studio',
-			autoHideMenuBar: true,
-			webPreferences: { contextIsolation: true, sandbox: true },
-		})
-		// Links (docs, tldraw license) open in the normal browser.
-		win.webContents.setWindowOpenHandler(({ url }) => {
-			if (/^https?:/.test(url)) shell.openExternal(url)
-			return { action: 'deny' }
-		})
-		win.loadURL(URL)
-		win.on('closed', () => (win = null))
-	}
+	const settings = () => readSettings()
+	const serverUrl = () => settings().mode === 'server' && settings().serverUrl
 
-	app.on('second-instance', () => {
-		if (!win) return
-		if (win.isMinimized()) win.restore()
-		win.focus()
-	})
-
-	app.whenReady().then(async () => {
+	async function startLocal() {
+		if (localStarted) return true
 		process.env.MATH_STUDIO_STATIC = path.join(__dirname, 'web')
 		process.env.MATH_STUDIO_ROOT = app.getPath('userData')
 		const started = new Promise((resolve, reject) => {
@@ -44,6 +45,8 @@ if (!app.requestSingleInstanceLock()) {
 		try {
 			await import(pathToFileURL(path.join(__dirname, 'server', 'server.mjs')).href)
 			await started
+			localStarted = true
+			return true
 		} catch (err) {
 			const busy = err && err.code === 'EADDRINUSE'
 			dialog.showErrorBox(
@@ -52,9 +55,111 @@ if (!app.requestSingleInstanceLock()) {
 					? `Port ${PORT} is already in use. Close the other Math Studio (or "npm run dev") and try again.`
 					: String(err && err.stack ? err.stack : err)
 			)
-			app.quit()
+			return false
+		}
+	}
+
+	// Sign-in link from the browser: only for the configured server.
+	function handleAuthUrl(raw) {
+		try {
+			const u = new URL(raw)
+			const link = new URL(u.searchParams.get('url') ?? '')
+			const server = serverUrl()
+			if (!server || link.origin !== new URL(server).origin || link.pathname !== '/auth/link') return
+			win?.loadURL(link.href)
+		} catch {}
+	}
+
+	async function openMain() {
+		const s = settings()
+		if (!s.mode) return win.loadFile(path.join(__dirname, 'setup.html'))
+		if (s.mode === 'server') {
+			win.loadURL(s.serverUrl)
+			if (pendingAuth) {
+				handleAuthUrl(pendingAuth)
+				pendingAuth = null
+			}
 			return
 		}
+		if (await startLocal()) win.loadURL(LOCAL_URL)
+		else app.quit()
+	}
+
+	function createWindow() {
+		win = new BrowserWindow({
+			width: 1400,
+			height: 900,
+			title: 'Math Studio',
+			autoHideMenuBar: true,
+			webPreferences: { contextIsolation: true, sandbox: true, preload: path.join(__dirname, 'preload.cjs') },
+		})
+		// Links (docs, tldraw license) open in the normal browser.
+		win.webContents.setWindowOpenHandler(({ url }) => {
+			if (/^https?:/.test(url)) shell.openExternal(url)
+			return { action: 'deny' }
+		})
+		// Google sign-in happens in the system browser, which hands back a mathstudio:// link.
+		win.webContents.on('will-navigate', (e, url) => {
+			const u = new URL(url)
+			if (u.pathname === '/auth/google') {
+				e.preventDefault()
+				u.searchParams.set('app', '1')
+				shell.openExternal(u.href)
+			}
+		})
+		win.on('closed', () => (win = null))
+		openMain()
+	}
+
+	function changeServer() {
+		writeSettings({ ...settings(), mode: undefined })
+		win?.loadFile(path.join(__dirname, 'setup.html'))
+	}
+
+	// Only the local setup page may change settings, not pages loaded from a server.
+	const fromSetup = (e) => (e.senderFrame?.url ?? '').startsWith('file:')
+	ipcMain.handle('ms:setup', async (e, choice) => {
+		if (!fromSetup(e)) return { error: 'Not allowed' }
+		if (choice?.mode === 'server') {
+			let url
+			try {
+				url = new URL(/^https?:\/\//.test(choice.serverUrl) ? choice.serverUrl : `https://${choice.serverUrl}`)
+			} catch {
+				return { error: 'That is not a web address.' }
+			}
+			writeSettings({ mode: 'server', serverUrl: url.origin + '/' })
+		} else {
+			writeSettings({ ...settings(), mode: 'local' })
+		}
+		openMain()
+		return { ok: true }
+	})
+	ipcMain.handle('ms:settings', (e) => (fromSetup(e) ? settings() : {}))
+
+	app.on('second-instance', (_e, argv) => {
+		const auth = argv.find((a) => a.startsWith(`${PROTOCOL}://`))
+		if (auth) handleAuthUrl(auth)
+		if (!win) return
+		if (win.isMinimized()) win.restore()
+		win.focus()
+	})
+
+	app.whenReady().then(() => {
+		Menu.setApplicationMenu(
+			Menu.buildFromTemplate([
+				{
+					label: 'Math Studio',
+					submenu: [
+						{ label: 'Change server…', click: changeServer },
+						{ role: 'reload' },
+						{ role: 'togglefullscreen' },
+						{ type: 'separator' },
+						{ role: 'quit' },
+					],
+				},
+				{ role: 'editMenu' },
+			])
+		)
 		createWindow()
 	})
 
