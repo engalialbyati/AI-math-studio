@@ -12,6 +12,7 @@ import {
 	newFile,
 	openFile,
 	renameFile,
+	authRequest,
 	signOut,
 	type ServerFile,
 } from './hosted'
@@ -25,6 +26,7 @@ export function HomeMenu() {
 	const [files, setFiles] = useState<ServerFile[] | null>(null)
 	const [error, setError] = useState<string>()
 	const [busy, setBusy] = useState(false)
+	const [passwordOpen, setPasswordOpen] = useState(false)
 
 	const refresh = () =>
 		listFiles().then(setFiles, (err) => setError(String(err.message ?? err)))
@@ -61,9 +63,9 @@ export function HomeMenu() {
 				<div className="ms-home-head">
 					<span className="ms-logo">∫ Math Studio</span>
 					<span className="ms-home-user">
-						{user.picture && <img src={user.picture} alt="" referrerPolicy="no-referrer" />}
 						{user.email}
 					</span>
+					<button onClick={() => setPasswordOpen((v) => !v)}>Password</button>
 					<button onClick={signOut}>Sign out</button>
 					{current && <button onClick={close} title="Back to the canvas">×</button>}
 				</div>
@@ -78,6 +80,7 @@ export function HomeMenu() {
 					)}
 				</div>
 				{error && <p className="ms-home-error">{error}</p>}
+				{passwordOpen && <ChangePassword onDone={() => setPasswordOpen(false)} />}
 				<ClaudeAccount />
 				{!files ? (
 					<p className="ms-home-empty">Loading…</p>
@@ -168,20 +171,89 @@ function ClaudeAccount() {
 }
 
 export function LoginPage() {
-	const dev = useValue('devLogin', () => hostedAtom.get().devLogin, [])
+	const [mode, setMode] = useState<'login' | 'signup'>('login')
+	const [error, setError] = useState<string>()
+	const [busy, setBusy] = useState(false)
+
+	const submit = async (e: React.FormEvent<HTMLFormElement>) => {
+		e.preventDefault()
+		const form = new FormData(e.currentTarget)
+		if (mode === 'signup' && form.get('password') !== form.get('confirm')) return setError('The passwords do not match.')
+		setBusy(true)
+		setError(undefined)
+		try {
+			await authRequest(mode === 'login' ? '/auth/login' : '/auth/signup', Object.fromEntries(form))
+			location.reload()
+		} catch (err: any) {
+			setError(String(err?.message ?? err))
+			setBusy(false)
+		}
+	}
+
 	return (
 		<div className="ms-login">
 			<div className="ms-home-card">
 				<h1 className="ms-logo">∫ Math Studio</h1>
-				<p>Sign in to see your files from any device.</p>
-				<a className="ms-google" href="/auth/google">Sign in with Google</a>
-				{dev && (
-					<form action="/auth/dev" className="ms-dev-login">
-						<input name="email" placeholder="test email (dev login)" />
-						<button>Dev sign in</button>
-					</form>
-				)}
+				<p>{mode === 'login' ? 'Sign in to see your files from any device.' : 'Create your account.'}</p>
+				<form className="ms-login-form" onSubmit={submit} key={mode}>
+					{mode === 'signup' && <input name="name" placeholder="Name" autoComplete="name" />}
+					<input name="email" type="email" placeholder="Email" autoComplete="email" required autoFocus />
+					<input
+						name="password"
+						type="password"
+						placeholder={mode === 'signup' ? 'Password (at least 8 characters)' : 'Password'}
+						autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+						minLength={mode === 'signup' ? 8 : undefined}
+						required
+					/>
+					{mode === 'signup' && <input name="confirm" type="password" placeholder="Repeat password" autoComplete="new-password" required />}
+					{error && <p className="ms-home-error">{error}</p>}
+					<button className="ms-primary" disabled={busy}>
+						{mode === 'login' ? 'Sign in' : 'Create account'}
+					</button>
+				</form>
+				<p className="ms-login-switch">
+					{mode === 'login' ? 'New here? ' : 'Already have an account? '}
+					<button
+						type="button"
+						onClick={() => {
+							setMode(mode === 'login' ? 'signup' : 'login')
+							setError(undefined)
+						}}
+					>
+						{mode === 'login' ? 'Create an account' : 'Sign in'}
+					</button>
+				</p>
+				{mode === 'login' && <p className="ms-tablet-note">Forgot your password? Ask the owner of this Math Studio to reset it.</p>}
 			</div>
 		</div>
+	)
+}
+
+// Change password, from the Home menu. Other devices of this account are signed out.
+function ChangePassword({ onDone }: { onDone: () => void }) {
+	const [error, setError] = useState<string>()
+	const [done, setDone] = useState(false)
+	const submit = async (e: React.FormEvent<HTMLFormElement>) => {
+		e.preventDefault()
+		const form = new FormData(e.currentTarget)
+		if (form.get('newPassword') !== form.get('confirm')) return setError('The new passwords do not match.')
+		try {
+			await authRequest('/auth/password', Object.fromEntries(form))
+			setDone(true)
+			setTimeout(onDone, 1500)
+		} catch (err: any) {
+			setError(String(err?.message ?? err))
+		}
+	}
+	return (
+		<form className="ms-claude ms-login-form" onSubmit={submit}>
+			<b>Change password</b>
+			<input name="currentPassword" type="password" placeholder="Current password" autoComplete="current-password" required />
+			<input name="newPassword" type="password" placeholder="New password (at least 8 characters)" autoComplete="new-password" minLength={8} required />
+			<input name="confirm" type="password" placeholder="Repeat new password" autoComplete="new-password" required />
+			{error && <p className="ms-home-error">{error}</p>}
+			{done ? <p className="ms-tablet-ok">Password changed. Other devices are signed out.</p> : <button className="ms-primary">Change password</button>}
+		</form>
 	)
 }

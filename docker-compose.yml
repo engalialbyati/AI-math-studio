@@ -8,6 +8,8 @@ services:
     env_file: .env
     volumes:
       - ./data:/data
+      # Windows installer and Android APK offered on the landing page (optional).
+      - ./downloads:/app/downloads:ro
     # Only this machine (your reverse proxy) can reach it; the proxy adds HTTPS.
     ports:
       - "127.0.0.1:3001:3001"

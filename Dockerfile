@@ -1,4 +1,4 @@
-# Math Studio, hosted: Google sign-in, files per user, AI on each user's own Claude account.
+# Math Studio, hosted: email + password accounts, files per user, AI on each user's own Claude account.
 # See docs/hosting.md.
 
 FROM node:22-bookworm-slim AS build
@@ -24,7 +24,7 @@ ENV NODE_ENV=production \
 	MATH_STUDIO_HOSTED=1 \
 	MATH_STUDIO_STATIC=/app/web \
 	MATH_STUDIO_PORT=3001 \
-	DATA_DIR=/data
+	DATA_DIR=/data 	DOWNLOADS_DIR=/app/downloads
 RUN mkdir -p /data && chown node:node /data
 USER node
 VOLUME /data

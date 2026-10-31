@@ -14,6 +14,10 @@ describe('multiplication in TeX', () => {
 		expect(tex('x*y')).toBe('x * y')
 		expect(tex('2*3')).toBe('2 * 3')
 	})
+	it('brackets a sum inside a product', () => {
+		expect(tex('3*(x+1)')).toContain('\\left(')
+		expect(tex('q*(L/2 - x)')).toContain('\\right)')
+	})
 	it('never prints a dot', () => {
 		for (const s of ['x^2/2 + 5*x', 'a*b*c', '(x+1)*(x-1)', '3*(x+1)']) expect(tex(s)).not.toContain('cdot')
 	})

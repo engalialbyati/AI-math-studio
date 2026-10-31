@@ -12,5 +12,7 @@ export default defineConfig({
 			'/ws': { target: 'ws://127.0.0.1:3001', ws: true, headers: { 'x-math-studio-proxy': '1' } },
 		},
 	},
+	// Two pages: the app (index.html) and the hosted server's landing page (landing.html).
+	build: { rollupOptions: { input: { app: 'index.html', landing: 'landing.html' } } },
 	test: { environment: 'node' },
 } as any)

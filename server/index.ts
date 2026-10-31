@@ -1,10 +1,12 @@
 import { createServer } from 'node:http'
+import { join, resolve } from 'node:path'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import express from 'express'
 import { WebSocketServer } from 'ws'
 import { authRoutes, createDeviceLink, requireUser, sameOrigin, userFrom } from './hosted/auth'
 import { checkConfig, config, hosted } from './hosted/config'
 import { claudeRoutes } from './hosted/claude'
+import { resetPasswordCli } from './hosted/accounts'
 import { fileRoutes } from './hosted/files'
 import { releaseRoom, roomByMcpKey, roomFor, setRoomsPort } from './hosted/rooms'
 import { createMcpServer } from './mcp'
@@ -18,16 +20,25 @@ const HOST = process.env.MATH_STUDIO_HOST ?? '0.0.0.0'
 const { onServerReady, onServerError } = (globalThis as any).__mathStudioHooks ?? {}
 const LOCAL_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/
 
+// `node server.mjs reset-password <email> <new password>`: change it and exit.
+if (await resetPasswordCli(process.argv)) process.exit(0)
 checkConfig()
 const app = express()
 
 // Desktop app and hosted server: the built web app is served here, to every device.
-if (process.env.MATH_STUDIO_STATIC) app.use(express.static(process.env.MATH_STUDIO_STATIC))
+// Hosted: the landing page is at / and the app at /app; downloads (installer, APK) at /downloads.
+const STATIC = process.env.MATH_STUDIO_STATIC && resolve(process.env.MATH_STUDIO_STATIC)
+if (STATIC && hosted) {
+	app.get('/', (_req, res) => res.sendFile(join(STATIC, 'landing.html'), { dotfiles: 'allow' }))
+	app.get(['/app', '/app/'], (_req, res) => res.sendFile(join(STATIC, 'index.html'), { dotfiles: 'allow' }))
+	if (process.env.DOWNLOADS_DIR) app.use('/downloads', express.static(process.env.DOWNLOADS_DIR, { index: false }))
+	app.use(express.static(STATIC, { index: false }))
+} else if (STATIC) app.use(express.static(STATIC))
 
 // Tells the page whether it runs on a hosted server and who is signed in.
 app.get('/api/config', (req, res) => {
 	const user = hosted ? userFrom(req) : null
-	res.json({ hosted, user, devLogin: hosted && config.devLogin })
+	res.json({ hosted, user })
 })
 
 if (hosted) {
@@ -98,7 +109,7 @@ wss.on('connection', (ws, req) => {
 	if (hosted) {
 		const user = userFrom(req)
 		const origin = req.headers.origin
-		const okOrigin = origin === config.publicUrl || (config.devLogin && !!origin && LOCAL_ORIGIN.test(origin))
+		const okOrigin = origin === config.publicUrl
 		if (!user || !okOrigin) {
 			ws.close(1008, user ? 'Forbidden origin' : 'Not signed in')
 			return

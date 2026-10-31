@@ -20,3 +20,6 @@ release/
 # Hosted server data and secrets
 data/
 .env
+
+# Hosted server downloads (installer, APK)
+downloads/

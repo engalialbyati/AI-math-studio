@@ -123,7 +123,7 @@ function startsWithNumber(node: any): boolean {
 function factorTex(node: any, options: any) {
 	const tex = node.toTex(options)
 	const loose = node.type === 'OperatorNode' && node.args.length === 2 && (node.op === '+' || node.op === '-')
-	return loose ? `\left(${tex}\right)` : tex
+	return loose ? `\\left(${tex}\\right)` : tex
 }
 
 // Products print as 5x when a number leads, otherwise with * (never as a dot).

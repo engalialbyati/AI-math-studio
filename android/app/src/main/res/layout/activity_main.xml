@@ -33,7 +33,7 @@
             android:layout_marginTop="16dp"
             android:gravity="center"
             android:maxWidth="520dp"
-            android:text="Type your Math Studio server address below and sign in with Google, or scan the code from Connect tablet in Math Studio."
+            android:text="Type your Math Studio server address below and sign in, or scan the code from Connect tablet in Math Studio."
             android:textColor="#374151"
             android:textSize="17sp" />
 
